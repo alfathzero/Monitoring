@@ -1,0 +1,6 @@
+{
+  "name": "VPS Monitor Telegram",
+  "description": "Script dan Dashboard Monitoring VPS Real-time via Telegram Bot untuk Server Pterodactyl Node.js",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
