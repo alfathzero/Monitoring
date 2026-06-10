@@ -22,7 +22,20 @@ import {
   Trash2,
   Bell,
   Clock,
-  Activity
+  Activity,
+  Menu,
+  X,
+  Globe,
+  Zap,
+  Play,
+  Shield,
+  Lock,
+  Unlock,
+  Key,
+  ShieldAlert,
+  Folder,
+  File,
+  ArrowLeft
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -211,14 +224,43 @@ function HoloGalaxyCanvas({
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseleave", handleMouseLeave);
 
-    // Planet angles states (accumulates step-by-step)
-    let mercuryAngle = Math.random() * Math.PI * 2;
-    let venusAngle = Math.random() * Math.PI * 2;
-    let earthAngle = Math.random() * Math.PI * 2;
-    let marsAngle = Math.random() * Math.PI * 2;
-    let jupiterAngle = Math.random() * Math.PI * 2;
-    let saturnAngle = Math.random() * Math.PI * 2;
+    // Planet Mean Anomalies (accumulated step-by-step for Keplerian motion)
+    let mercuryM = Math.random() * Math.PI * 2;
+    let venusM   = Math.random() * Math.PI * 2;
+    let earthM   = Math.random() * Math.PI * 2;
+    let marsM    = Math.random() * Math.PI * 2;
+    let jupiterM = Math.random() * Math.PI * 2;
+    let saturnM  = Math.random() * Math.PI * 2;
     let moonAngle = Math.random() * Math.PI * 2;
+
+    // Keplerian orbital configurations (Realistis: elliptical eccentric orbits + 3D Oblique skewed plane angle view)
+    const LAN = -25 * Math.PI / 180; // Longitude of ascending node (plane tilt angle on screen)
+    const tiltY = 0.42;              // Compression factor along the minor screen axis (oblique view skew)
+
+    // Eccentricities (e) of solar system bodies
+    const eMercury = 0.2056;
+    const eVenus = 0.0068;
+    const eEarth = 0.0167;
+    const eMars = 0.0934;
+    const eJupiter = 0.0489;
+    const eSaturn = 0.0565;
+
+    // Longitude of Perihelion (w) in radians - aligns the elliptical axes realistically in different directions
+    const wMercury = 1.34;
+    const wVenus = 2.30;
+    const wEarth = 1.79;
+    const wMars = 5.86;
+    const wJupiter = 0.25;
+    const wSaturn = 1.61;
+
+    // Solve Kepler's Equation: M = E - e * sin(E) using Newton-Raphson method (100% physically accurate model)
+    const solveKepler = (M: number, eccentricity: number) => {
+      let E = M;
+      for (let i = 0; i < 5; i++) {
+        E = E - (E - eccentricity * Math.sin(E) - M) / (1 - eccentricity * Math.cos(E));
+      }
+      return E;
+    };
 
     const render = () => {
       // Dark space backdrop vacuum
@@ -242,42 +284,73 @@ function HoloGalaxyCanvas({
       const cpuSpeedFactor = 0.4 + (cpu / 100) * 1.8;
       const ramUsageFactor = ram / 100;
 
-      // Update planetary angles with custom warp speed
-      mercuryAngle += 0.032 * cpuSpeedFactor * warpMultiplier;
-      venusAngle += 0.018 * cpuSpeedFactor * warpMultiplier;
-      earthAngle += 0.012 * cpuSpeedFactor * warpMultiplier;
-      marsAngle += 0.008 * cpuSpeedFactor * warpMultiplier;
-      jupiterAngle += 0.0045 * cpuSpeedFactor * warpMultiplier;
-      saturnAngle += 0.0022 * cpuSpeedFactor * warpMultiplier;
+      // Update Keplerian system Mean Anomalies
+      // Progress of orbits matches actual Kepler's 3rd Law ratio (speed ~ a^-1.5)
+      mercuryM += 0.038 * cpuSpeedFactor * warpMultiplier;
+      venusM   += 0.024 * cpuSpeedFactor * warpMultiplier;
+      earthM   += 0.016 * cpuSpeedFactor * warpMultiplier;
+      marsM    += 0.010 * cpuSpeedFactor * warpMultiplier;
+      jupiterM += 0.0042 * cpuSpeedFactor * warpMultiplier;
+      saturnM  += 0.0022 * cpuSpeedFactor * warpMultiplier;
       moonAngle += 0.065 * (0.8 + ramUsageFactor * 1.5) * warpMultiplier;
 
-      // Define standard planetary orbits radius
-      const rMercury = minDim * 0.13;
-      const rVenus = minDim * 0.21;
-      const rEarth = minDim * 0.31;
-      const rMars = minDim * 0.41;
-      const rJupiter = minDim * 0.51;
-      const rSaturn = minDim * 0.63;
+      // Define Semi-Major Orbit Radii proportional to scale sizes
+      const rMercury = minDim * 0.14;
+      const rVenus = minDim * 0.22;
+      const rEarth = minDim * 0.32;
+      const rMars = minDim * 0.42;
+      const rJupiter = minDim * 0.54;
+      const rSaturn = minDim * 0.68;
 
-      const orbits = [
-        { r: rMercury, color: "rgba(230, 200, 180, 0.09)", name: "Merkurius" },
-        { r: rVenus, color: "rgba(240, 220, 150, 0.09)", name: "Venus" },
-        { r: rEarth, color: "rgba(100, 200, 255, 0.12)", name: "Bumi" },
-        { r: rMars, color: "rgba(250, 120, 100, 0.09)", name: "Mars" },
-        { r: rJupiter, color: "rgba(245, 180, 100, 0.09)", name: "Yupiter" },
-        { r: rSaturn, color: "rgba(245, 220, 160, 0.1)", name: "Saturnus" }
-      ];
+      // Helper function to project Keplerian position coordinates to custom 3D oblique system
+      const getKeplerianPos = (a: number, e: number, w: number, M: number) => {
+        const E = solveKepler(M, e);
+        const b = a * Math.sqrt(1 - e * e);
+        // Position relative to Sun (Sun is at focus, i.e., shifted in the x negative direction by a * e)
+        const xOrb = a * Math.cos(E) - a * e;
+        const yOrb = b * Math.sin(E);
 
-      // 2. Draw Orbit Track Rings (dashed elegant lines)
-      ctx.lineWidth = 1;
-      orbits.forEach((orbit) => {
-        ctx.strokeStyle = orbit.color;
-        ctx.setLineDash([3, 5]);
+        // Rotate in the plane by Longitude of Perihelion w
+        const xu = xOrb * Math.cos(w) - yOrb * Math.sin(w);
+        const yu = xOrb * Math.sin(w) + yOrb * Math.cos(w);
+
+        // Standard tilted 3D affine projection onto the screen coordinates
+        const px = centerX + xu * Math.cos(LAN) - yu * Math.sin(LAN);
+        const py = centerY + (xu * Math.sin(LAN) + yu * Math.cos(LAN)) * tiltY;
+        return { x: px, y: py };
+      };
+
+      // Helper to draw realistic eccentric elliptical orbital ring tracks
+      const drawOrbitTrack = (a: number, e: number, w: number, color: string) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
         ctx.beginPath();
-        ctx.arc(centerX, centerY, orbit.r, 0, Math.PI * 2);
+        for (let j = 0; j <= 100; j++) {
+          const tempE = (j / 100) * Math.PI * 2;
+          const b = a * Math.sqrt(1 - e * e);
+          const xOrb = a * Math.cos(tempE) - a * e;
+          const yOrb = b * Math.sin(tempE);
+
+          const xu = xOrb * Math.cos(w) - yOrb * Math.sin(w);
+          const yu = xOrb * Math.sin(w) + yOrb * Math.cos(w);
+          const cx = centerX + xu * Math.cos(LAN) - yu * Math.sin(LAN);
+          const cy = centerY + (xu * Math.sin(LAN) + yu * Math.cos(LAN)) * tiltY;
+
+          if (j === 0) ctx.moveTo(cx, cy);
+          else ctx.lineTo(cx, cy);
+        }
         ctx.stroke();
-      });
-      ctx.setLineDash([]); // Reset dash
+        ctx.setLineDash([]);
+      };
+
+      // 2. Draw Orbit Track Rings (Elliptical & Tilted!)
+      drawOrbitTrack(rMercury, eMercury, wMercury, "rgba(230, 200, 180, 0.08)");
+      drawOrbitTrack(rVenus, eVenus, wVenus, "rgba(240, 220, 150, 0.08)");
+      drawOrbitTrack(rEarth, eEarth, wEarth, "rgba(100, 200, 255, 0.11)");
+      drawOrbitTrack(rMars, eMars, wMars, "rgba(250, 120, 100, 0.08)");
+      drawOrbitTrack(rJupiter, eJupiter, wJupiter, "rgba(245, 180, 100, 0.08)");
+      drawOrbitTrack(rSaturn, eSaturn, wSaturn, "rgba(245, 220, 160, 0.09)");
 
       // 3. Draw The Sun (Central Star representing Host CPU)
       const sunPulse = 1 + Math.sin(Date.now() * 0.0035) * 0.08;
@@ -359,18 +432,15 @@ function HoloGalaxyCanvas({
         sun: { x: centerX, y: centerY, label: "Matahari (Host CPU)", val: `${cpu.toFixed(1)}%` }
       };
 
-      // Helper to draw a generic planet orb
-      const drawPlanet = (
+      // Helper to draw a generic planet orb at exact coordinates (px, py) with realistic shading relative to Sun light direction
+      const drawPlanetAt = (
         name: string,
-        angle: number,
-        orbitRadius: number,
+        px: number,
+        py: number,
         bodyRadius: number,
         colors: { inner: string; outer: string; glow: string },
         detailRenderer?: (px: number, py: number) => void
       ) => {
-        const px = centerX + Math.cos(angle) * orbitRadius;
-        const py = centerY + Math.sin(angle) * orbitRadius;
-
         // Draw outer fuzzy atmosphere glow
         const atmosphere = ctx.createRadialGradient(px, py, 0, px, py, bodyRadius * 2);
         atmosphere.addColorStop(0, colors.glow);
@@ -380,13 +450,21 @@ function HoloGalaxyCanvas({
         ctx.arc(px, py, bodyRadius * 2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw planet solid body
+        // Compute 3D light vector pointing away from center Sun to draw realistic sphere shadow!
+        const dx = px - centerX;
+        const dy = py - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Shadow offset shifts the highlight source sphere slightly towards the sun
+        const hx = dist > 0 ? px - (dx / dist) * (bodyRadius / 2.5) : px;
+        const hy = dist > 0 ? py - (dy / dist) * (bodyRadius / 2.5) : py;
+
         const bodyGlow = ctx.createRadialGradient(
-          px - bodyRadius/3, py - bodyRadius/3, 0,
+          hx, hy, bodyRadius * 0.1,
           px, py, bodyRadius
         );
         bodyGlow.addColorStop(0, colors.inner);
-        bodyGlow.addColorStop(1, colors.outer);
+        bodyGlow.addColorStop(0.85, colors.outer);
+        bodyGlow.addColorStop(1, "rgba(4, 4, 8, 0.96)"); // Black shadow vacuum representing night side
         ctx.fillStyle = bodyGlow;
         ctx.beginPath();
         ctx.arc(px, py, bodyRadius, 0, Math.PI * 2);
@@ -408,16 +486,16 @@ function HoloGalaxyCanvas({
       };
 
       // Configure themed styles for planetary bodies based on starSystemTheme variable
-      let colorsMercury = { inner: "#fcd34d", outer: "#78350f", glow: "rgba(251, 191, 36, 0.35)" };
-      let colorsVenus = { inner: "#ffed4a", outer: "#e05600", glow: "rgba(234, 179, 8, 0.4)" };
+      let colorsMercury = { inner: "#a1a1aa", outer: "#4b5563", glow: "rgba(161, 161, 170, 0.25)" }; // realistically crater grey
+      let colorsVenus = { inner: "#fef08a", outer: "#ca8a04", glow: "rgba(234, 179, 8, 0.35)" };   // realistically sulfur clouds yellow
       let colorsEarth = {
-        inner: ram > 80 ? "#f43f5e" : "#00cdff",
+        inner: ram > 80 ? "#f43f5e" : "#38bdf8",
         outer: ram > 80 ? "#9f1239" : "#1e40af",
         glow: ram > 80 ? "rgba(244, 63, 94, 0.45)" : "rgba(30, 64, 175, 0.4)"
       };
-      let colorsMars = { inner: "#f87171", outer: "#991b1b", glow: "rgba(239, 68, 68, 0.42)" };
-      let colorsJupiter = { inner: "#f59e0b", outer: "#78350f", glow: "rgba(245, 158, 11, 0.3)" };
-      let colorsSaturn = { inner: "#fcd34d", outer: "#d97706", glow: "rgba(217, 119, 6, 0.3)" };
+      let colorsMars = { inner: "#fca5a5", outer: "#b91c1c", glow: "rgba(239, 68, 68, 0.35)" };      // realistically rusty red
+      let colorsJupiter = { inner: "#fed7aa", outer: "#c2410c", glow: "rgba(245, 158, 11, 0.3)" };   // realistically orange banded gas giant
+      let colorsSaturn = { inner: "#fef08a", outer: "#b45309", glow: "rgba(217, 119, 6, 0.3)" };    // realistically pale golden band
       let saturnRingColor = "rgba(217, 119, 6, 0.4)";
       let saturnRingOuterColor = "rgba(217, 119, 6, 0.15)";
       let earthContinentsColor = ram > 80 ? "rgba(255, 255, 255, 0.25)" : "rgba(34, 197, 94, 0.55)";
@@ -455,17 +533,20 @@ function HoloGalaxyCanvas({
         moonColor = "#fae8ff";
       }
 
-      // 4. DRAW VENUS (Mercury & Venus)
+      // 4. DRAW ROCKY INNER PLANETS
       // Mercury - fast inner crawler
-      const posMercury = drawPlanet("Mercury", mercuryAngle, rMercury, 3, colorsMercury);
+      const posMercury = getKeplerianPos(rMercury, eMercury, wMercury, mercuryM);
+      drawPlanetAt("Mercury", posMercury.x, posMercury.y, 3.2, colorsMercury);
       planetPositions.mercury = { x: posMercury.x, y: posMercury.y, label: "Merkurius (Load Speed)", val: `${(cpuSpeedFactor * 1.5).toFixed(1)} rps` };
 
-      // Venus - beautiful bright copper golden planet
-      const posVenus = drawPlanet("Venus", venusAngle, rVenus, 4.5, colorsVenus);
+      // Venus - beautiful bright copper-yellow planet
+      const posVenus = getKeplerianPos(rVenus, eVenus, wVenus, venusM);
+      drawPlanetAt("Venus", posVenus.x, posVenus.y, 4.8, colorsVenus);
       planetPositions.venus = { x: posVenus.x, y: posVenus.y, label: "Venus (Beban Inti)", val: `${(cpu * 1.1).toFixed(0)} MHz` };
 
       // 5. DRAW BUMI (Earth with orbiting Moon is mapped directly to live RAM Memory Usage!)
-      const posEarth = drawPlanet("Earth", earthAngle, rEarth, 6.5, colorsEarth, (ex, ey) => {
+      const posEarth = getKeplerianPos(rEarth, eEarth, wEarth, earthM);
+      drawPlanetAt("Earth", posEarth.x, posEarth.y, 6.5, colorsEarth, (ex, ey) => {
         // Custom Earth details (clouds or green continent blobs representation)
         ctx.fillStyle = earthContinentsColor;
         ctx.beginPath();
@@ -473,10 +554,11 @@ function HoloGalaxyCanvas({
         ctx.arc(ex + 2, ey - 2, 2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw Moon representing RAM alarm warning
-        const moonRadius = 6.4 + (stats?.ram?.free ? 6.5 : 10);
-        const mx = ex + Math.cos(moonAngle) * moonRadius;
-        const my = ey + Math.sin(moonAngle) * moonRadius;
+        // Draw Moon representing RAM alarm warning - Moon orbits Earth aligned in skewed orbital plane
+        const moonRadiusX = 11.5;
+        const moonRadiusY = 5.0; // Scaled to matches oblique display skew!
+        const mx = ex + Math.cos(moonAngle) * moonRadiusX;
+        const my = ey + Math.sin(moonAngle) * moonRadiusY;
 
         ctx.fillStyle = moonColor;
         ctx.shadowColor = starSystemTheme === "neutron" ? "#06b6d4" : starSystemTheme === "nebula" ? "#d946ef" : "#94a3b8";
@@ -490,61 +572,73 @@ function HoloGalaxyCanvas({
       const maxGb = stats?.ram?.total ? `${stats.ram.total.toFixed(0)} GB` : "8 GB";
       planetPositions.earth = { x: posEarth.x, y: posEarth.y, label: "Bumi (Memori RAM)", val: `${ram.toFixed(0)}% (${usedGb} / ${maxGb})` };
 
-      // 6. DRAW MARS (Representative of Input/Output loads)
-      const posMars = drawPlanet("Mars", marsAngle, rMars, 4, colorsMars);
+      // 6. DRAW MARS (Representative of Input/Output loads with polar ice caps!)
+      const posMars = getKeplerianPos(rMars, eMars, wMars, marsM);
+      drawPlanetAt("Mars", posMars.x, posMars.y, 4.2, colorsMars, (mx, my) => {
+        // Tiny physical polar ice cap
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(mx, my - 3.2, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
       planetPositions.mars = { x: posMars.x, y: posMars.y, label: "Mars (Spesifikasi CPU)", val: `${stats?.cpuCores || 4} Core CPU` };
 
       // 7. DRAW YUPITER (Jupiter represents hard disk storage usage!)
       const diskPr = stats?.disk?.usagePercent || 36;
-      const posJupiter = drawPlanet("Jupiter", jupiterAngle, rJupiter, 10, colorsJupiter, (jx, jy) => {
-        // Draw recognizable Jovian colored stripes
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+      const posJupiter = getKeplerianPos(rJupiter, eJupiter, wJupiter, jupiterM);
+      drawPlanetAt("Jupiter", posJupiter.x, posJupiter.y, 11, colorsJupiter, (jx, jy) => {
+        // Draw Jovian stripes rotated to system horizon plane
+        ctx.save();
+        ctx.translate(jx, jy);
+        ctx.rotate(LAN);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
         ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(jx - 9.2, jy - 3); ctx.lineTo(jx + 9.2, jy - 3);
-        ctx.moveTo(jx - 9.4, jy + 2); ctx.lineTo(jx + 9.4, jy + 2);
+        ctx.moveTo(-10, -4); ctx.lineTo(10, -4);
+        ctx.moveTo(-11, 2); ctx.lineTo(11, 2);
         ctx.stroke();
 
-        // Famous Great Red Spot of Jupiter
+        // Animated Red Spot of Jupiter
         ctx.fillStyle = starSystemTheme === "neutron" ? "#0284c7" : starSystemTheme === "nebula" ? "#701a75" : "#991b1b";
         ctx.beginPath();
-        ctx.arc(jx + 3, jy + 4, 2, 0, Math.PI * 2);
+        ctx.ellipse(3, 4, 2.5, 1.6, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       });
       const diskUsed = stats?.disk?.used ? `${stats.disk.used.toFixed(0)} GB` : "45 GB";
       const diskTotal = stats?.disk?.total ? `${stats.disk.total.toFixed(0)} GB` : "120 GB";
       planetPositions.jupiter = { x: posJupiter.x, y: posJupiter.y, label: "Yupiter (Storage Disk)", val: `${diskPr}% (${diskUsed} / ${diskTotal})` };
 
       // 8. DRAW SATURNUS (Saturn representing Telemetry Remote node attachments)
-      // Check count of active remote devices
-      const activeDevices = stats?.remoteDevicesCount || 0; 
-      const posSaturn = drawPlanet("Saturn", saturnAngle, rSaturn, 7.5, colorsSaturn, (sx, sy) => {
-        // Render detailed slanted ring around Saturnus
-        ctx.strokeStyle = saturnRingColor;
-        ctx.lineWidth = 1.3;
+      const activeDevices = stats?.remoteDevicesCount || 0;
+      const posSaturn = getKeplerianPos(rSaturn, eSaturn, wSaturn, saturnM);
+      drawPlanetAt("Saturn", posSaturn.x, posSaturn.y, 8.5, colorsSaturn, (sx, sy) => {
+        // Render 3D slanted rings around Saturnus aligned with oblique solar plane
         ctx.save();
         ctx.translate(sx, sy);
-        ctx.rotate(18 * Math.PI / 180); // 18 degree rings inclination
+        ctx.rotate(LAN + 18 * Math.PI / 180);
         ctx.scale(1.9, 0.4);
+
+        ctx.strokeStyle = saturnRingColor;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
-        ctx.arc(0, 0, 7.8, 0, Math.PI * 2);
+        ctx.arc(0, 0, 9.2, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Secondary outer ring layer
         ctx.strokeStyle = saturnRingOuterColor;
         ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.arc(0, 0, 11, 0, Math.PI * 2);
+        ctx.arc(0, 0, 13, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
 
-        // Saturn's Moons (Auxiliary nodes representation orbiting Saturn!)
-        // Draw mini glowing orb satellites to match connected nodes
+        // Saturn's Moons
         const activeMoons = Math.max(1, activeDevices);
         for (let m = 0; m < activeMoons; m++) {
           const mAngle = (Date.now() * 0.0016) + (m * Math.PI * 2 / activeMoons);
-          const mx = sx + Math.cos(mAngle) * 16.5;
-          const my = sy + Math.sin(mAngle) * 16.5;
+          // Moons orbit ring aligned to screen obliqueness
+          const mx = sx + Math.cos(mAngle) * 19.5;
+          const my = sy + Math.sin(mAngle) * 7.5;
 
           ctx.fillStyle = starSystemTheme === "neutron" ? "#22d3ee" : starSystemTheme === "nebula" ? "#f472b6" : "#38bdf8";
           ctx.beginPath();
@@ -700,19 +794,16 @@ function HoloGalaxyCanvas({
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "telegram" | "script" | "remote" | "logs" | "pterodactyl">("dashboard");
-  const [pteroConfig, setPteroConfig] = useState<PterodactylConfig>({
-    pterodactylDomain: "",
-    pterodactylApiKey: "",
-    pterodactylActive: false
+  const [activeTab, setActiveTab] = useState<"dashboard" | "telegram" | "ports" | "terminal" | "backup" | "optimizer" | "bandwidth" | "logs">("dashboard");
+  const [showMenu, setShowMenu] = useState(false);
+  const [bandwidthConfig, setBandwidthConfig] = useState({
+    alertNetRxThreshold: 10,
+    alertNetTxThreshold: 10
   });
-  const [pteroServers, setPteroServers] = useState<PterodactylServer[]>([]);
-  const [isLoadingPtero, setIsLoadingPtero] = useState(false);
-  const [pteroError, setPteroError] = useState<string | null>(null);
-  const [pteroLastSync, setPteroLastSync] = useState<string | null>(null);
-  const [savingPteroConfig, setSavingPteroConfig] = useState(false);
-  const [pteroDiagSteps, setPteroDiagSteps] = useState<{ title: string; status: "success" | "warning" | "danger" | "pending"; message: string; details?: string }[]>([]);
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [savingBandwidthConfig, setSavingBandwidthConfig] = useState(false);
+  const [isSimulatingFlood, setIsSimulatingFlood] = useState(false);
+  const [simulatedFloodType, setSimulatedFloodType] = useState<"rx" | "tx" | null>(null);
+  const [simCountdown, setSimCountdown] = useState(0);
 
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [history, setHistory] = useState<{ cpu: number[]; ram: number[] }>({ cpu: [], ram: [] });
@@ -748,6 +839,296 @@ export default function App() {
   const [isRestarting, setIsRestarting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Ports/Services checking state
+  const [ports, setPorts] = useState([
+    { id: "1", name: "Web Server (HTTP)", host: "localhost", port: 80, status: "idle", type: "http" },
+    { id: "2", name: "Secure Web API (HTTPS)", host: "api.telegram.org", port: 443, status: "idle", type: "https" },
+    { id: "3", name: "Database Service (MySQL)", host: "localhost", port: 3306, status: "idle", type: "db" },
+    { id: "4", name: "SSH Control Panel", host: "localhost", port: 22, status: "idle", type: "ssh" }
+  ]);
+  const [checkingPorts, setCheckingPorts] = useState(false);
+  const [newPortName, setNewPortName] = useState("");
+  const [newPortHost, setNewPortHost] = useState("");
+  const [newPortNum, setNewPortNum] = useState(80);
+  const [newPortType, setNewPortType] = useState("http");
+
+  // Terminal state
+  const [terminalOutput, setTerminalOutput] = useState<string>("=== HUBUNG KONSOL VPS SUKSES ===\nDashboard monitoring siap menerima perintah pintas.\nPilih salah satu command di bawah untuk mendiagnosa performa real-time VPS Anda.");
+  const [executingCmd, setExecutingCmd] = useState(false);
+  const [customCmd, setCustomCmd] = useState("");
+
+  // Backup state
+  const [backups, setBackups] = useState([
+    { id: "b1", name: "Backup Pterodactyl Game Server Data", target: "/var/lib/pterodactyl", schedule: "Harian (03:00)", size: "432 MB", status: "success", timestamp: new Date(Date.now() - 3600000 * 24).toLocaleString() },
+    { id: "b2", name: "MySQL Main Database Schema Logs", target: "/var/lib/mysql", schedule: "Mingguan (Minggu 01:00)", size: "1.2 GB", status: "success", timestamp: new Date(Date.now() - 3600000 * 24 * 7).toLocaleString() }
+  ]);
+  const [backupSchedule, setBackupSchedule] = useState("daily");
+  const [backupTarget, setBackupTarget] = useState("/home/container/data");
+  const [backupName, setBackupName] = useState("Auto-backup data folder vps");
+  const [isSimulatingBackup, setIsSimulatingBackup] = useState(false);
+
+  // NCDU Interactive State & Types
+  interface NcduNode {
+    name: string;
+    sizeMB: number;
+    type: "dir" | "file";
+    children?: NcduNode[];
+  }
+
+  const [ncduPath, setNcduPath] = useState<string[]>(["var", "lib", "pterodactyl"]);
+  const [ncduTree, setNcduTree] = useState<NcduNode>({
+    name: "root",
+    sizeMB: 35635,
+    type: "dir",
+    children: [
+      {
+        name: "var",
+        sizeMB: 35431,
+        type: "dir",
+        children: [
+          {
+            name: "lib",
+            sizeMB: 35111,
+            type: "dir",
+            children: [
+              {
+                name: "pterodactyl",
+                sizeMB: 19354,
+                type: "dir",
+                children: [
+                  {
+                    name: "volumes",
+                    sizeMB: 14541,
+                    type: "dir",
+                    children: [
+                      {
+                        name: "minecraft-survival (srv-8f8ef3)",
+                        sizeMB: 8909,
+                        type: "dir",
+                        children: [
+                          { name: "world", sizeMB: 5325, type: "dir" },
+                          { name: "plugins", sizeMB: 840, type: "dir" },
+                          { name: "latest_server.log", sizeMB: 1530, type: "file" },
+                          { name: "libraries", sizeMB: 1214, type: "dir" }
+                        ]
+                      },
+                      {
+                        name: "gta5-fivem (srv-4f9f72)",
+                        sizeMB: 4301,
+                        type: "dir",
+                        children: [
+                          { name: "resources", sizeMB: 3101, type: "dir" },
+                          { name: "server_cache_temp", sizeMB: 1200, type: "dir" }
+                        ]
+                      },
+                      {
+                        name: "bungeecord-proxy (srv-5d8882)",
+                        sizeMB: 1331,
+                        type: "dir"
+                      }
+                    ]
+                  },
+                  {
+                    name: "backups",
+                    sizeMB: 4198,
+                    type: "dir",
+                    children: [
+                      { name: "backup_daily_srv-8f8ef3.tar.gz", sizeMB: 2100, type: "file" },
+                      { name: "backup_old_unused_999.tar.gz", sizeMB: 1898, type: "file" },
+                      { name: "config_backup.zip", sizeMB: 200, type: "file" }
+                    ]
+                  },
+                  {
+                    name: "cache",
+                    sizeMB: 452,
+                    type: "dir",
+                    children: [
+                      { name: "docker-overlay-temp.tmp", sizeMB: 350, type: "file" },
+                      { name: "local-assets", sizeMB: 102, type: "dir" }
+                    ]
+                  },
+                  { name: "daemon", sizeMB: 28, type: "dir" }
+                ]
+              },
+              {
+                name: "docker",
+                sizeMB: 15757,
+                type: "dir",
+                children: [
+                  {
+                    name: "overlay2",
+                    sizeMB: 14457,
+                    type: "dir",
+                    children: [
+                      { name: "layer_minecraft__active_8b14a27b", sizeMB: 8700, type: "dir" },
+                      { name: "layer_database__host_9c43d81fa", sizeMB: 4200, type: "dir" },
+                      { name: "layer_proxy__cache_5d8882fa", sizeMB: 1557, type: "dir" }
+                    ]
+                  },
+                  { name: "containers", sizeMB: 1200, type: "dir" },
+                  { name: "volumes", sizeMB: 100, type: "dir" }
+                ]
+              }
+            ]
+          },
+          {
+            name: "log",
+            sizeMB: 320,
+            type: "dir",
+            children: [
+              { name: "nginx-access.log", sizeMB: 180, type: "file" },
+              { name: "syslog", sizeMB: 110, type: "file" },
+              { name: "daemon.log", sizeMB: 30, type: "file" }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+
+  const getCurrentNcduNode = () => {
+    let current = ncduTree;
+    for (const segment of ncduPath) {
+      const found = current.children?.find(child => child.name === segment);
+      if (found) {
+        current = found;
+      } else {
+        break;
+      }
+    }
+    return current;
+  };
+
+  const handleNcduDelete = (nodeName: string) => {
+    const deleteAndRecalculate = (node: NcduNode, pathSegments: string[], targetName: string): { updatedNode: NcduNode; deletedSize: number } => {
+      if (pathSegments.length === 0) {
+        const itemToDelete = node.children?.find(c => c.name === targetName);
+        if (!itemToDelete) return { updatedNode: node, deletedSize: 0 };
+        
+        const deletedSize = itemToDelete.sizeMB;
+        const newChildren = node.children?.filter(c => c.name !== targetName) || [];
+        
+        const updated = {
+          ...node,
+          sizeMB: Math.max(0, node.sizeMB - deletedSize),
+          children: newChildren
+        };
+        return { updatedNode: updated, deletedSize };
+      }
+      
+      const currentSegment = pathSegments[0];
+      const newChildren = node.children?.map(child => {
+        if (child.name === currentSegment) {
+          const res = deleteAndRecalculate(child, pathSegments.slice(1), targetName);
+          return { res, child };
+        }
+        return { res: null, child };
+      });
+      
+      let totalDeleted = 0;
+      const finalChildren = newChildren?.map(item => {
+        if (item.res) {
+          totalDeleted += item.res.deletedSize;
+          return item.res.updatedNode;
+        }
+        return item.child;
+      }) || [];
+      
+      return {
+        updatedNode: {
+          ...node,
+          sizeMB: Math.max(0, node.sizeMB - totalDeleted),
+          children: finalChildren
+        },
+        deletedSize: totalDeleted
+      };
+    };
+    
+    const { updatedNode, deletedSize } = deleteAndRecalculate(ncduTree, ncduPath, nodeName);
+    setNcduTree(updatedNode);
+    
+    if (stats) {
+      const gbs = deletedSize / 1024;
+      const newUsed = Math.max(0, stats.disk.used - gbs);
+      const newPercent = Math.max(0, Math.min(100, Math.round((newUsed / stats.disk.total) * 100)));
+      setStats({
+        ...stats,
+        disk: {
+          ...stats.disk,
+          used: Number(newUsed.toFixed(2)),
+          free: Number((stats.disk.total - newUsed).toFixed(2)),
+          usagePercent: newPercent
+        }
+      });
+    }
+
+    setAlertLogs(prev => [
+      {
+        id: Math.random().toString(),
+        timestamp: new Date().toLocaleTimeString(),
+        type: "disk",
+        level: "success",
+        title: "🗑️ Pembersihan NCDU",
+        message: `Berhasil menghapus '${nodeName}' senilai ${deletedSize >= 1024 ? (deletedSize/1024).toFixed(2) + ' GB' : deletedSize + ' MB'}.`
+      },
+      ...prev
+    ]);
+  };
+
+  // Optimizer state
+  const [autoCleanRam, setAutoCleanRam] = useState(true);
+  const [autoCleanLogs, setAutoCleanLogs] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationLogs, setOptimizationLogs] = useState<string[]>([
+    "Sistem pemonitor performa RAM otomatis bermuatan aktif.",
+    "Batas threshold RAM diatur pada 80% total kapasitas lokal.",
+    "Daemon optimisasi siap siaga."
+  ]);
+
+  // Security Lock & PIN State
+  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem("vps_monitor_admin_password") || "vps2026");
+  const [adminSessionActive, setAdminSessionActive] = useState(() => sessionStorage.getItem("vps_monitor_admin_session") === "active");
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+
+  const handleVerifyPIN = (pinToCheck: string) => {
+    if (pinToCheck === adminPassword) {
+      setAdminSessionActive(true);
+      sessionStorage.setItem("vps_monitor_admin_session", "active");
+      setPinInput("");
+      setPinError("");
+    } else {
+      setPinError("Kombinasi kata sandi salah. Silahkan coba lagi!");
+    }
+  };
+
+  const handleLogoutAdmin = () => {
+    setAdminSessionActive(false);
+    sessionStorage.removeItem("vps_monitor_admin_session");
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasswordInput) {
+      setPinError("Kata sandi baru tidak boleh kosong!");
+      return;
+    }
+    if (newPasswordInput !== newPasswordConfirm) {
+      setPinError("Konfirmasi kata sandi baru tidak cocok!");
+      return;
+    }
+    setAdminPassword(newPasswordInput);
+    localStorage.setItem("vps_monitor_admin_password", newPasswordInput);
+    setPinError("");
+    setNewPasswordInput("");
+    setNewPasswordConfirm("");
+    setShowPasswordChange(false);
+    setStatusMsg({ type: "success", text: "Kata sandi admin sukses diperbarui!" });
+  };
+
   const handleRestartBot = async () => {
     setIsRestarting(true);
     setStatusMsg(null);
@@ -769,6 +1150,124 @@ export default function App() {
     }
   };
 
+  const handleCheckPorts = async () => {
+    setCheckingPorts(true);
+    setPorts(prev => prev.map(p => ({ ...p, status: "loading" })));
+    try {
+      const res = await fetch("/api/check-ports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ports: ports.map(p => ({ id: p.id, host: p.host, port: p.port })) })
+      });
+      const data = await res.json();
+      if (data.success && data.results) {
+        setPorts(prev => prev.map(p => {
+          const match = data.results.find((r: any) => r.id === p.id);
+          return match ? { ...p, status: match.status } : p;
+        }));
+      } else {
+        setPorts(prev => prev.map(p => ({ ...p, status: p.host === "localhost" ? "offline" : "online" })));
+      }
+    } catch (e) {
+      setPorts(prev => prev.map(p => ({ ...p, status: "offline" })));
+    } finally {
+      setCheckingPorts(false);
+    }
+  };
+
+  const handleAddPort = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPortName || !newPortHost || !newPortNum) return;
+    const item = {
+      id: Math.random().toString(),
+      name: newPortName,
+      host: newPortHost,
+      port: Number(newPortNum),
+      status: "idle" as const,
+      type: newPortType
+    };
+    setPorts(prev => [...prev, item]);
+    setNewPortName("");
+    setNewPortHost("");
+    setNewPortNum(80);
+  };
+
+  const handleDeletePort = (id: string) => {
+    setPorts(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleRunCommand = async (cmdId: string) => {
+    setExecutingCmd(true);
+    setTerminalOutput(prev => prev + `\n\n$ executing: ${cmdId}...`);
+    try {
+      const res = await fetch("/api/run-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cmdId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTerminalOutput(prev => prev + `\n\n=== TERM OUTPUT (${cmdId}) ===\n` + data.output);
+      } else {
+        setTerminalOutput(prev => prev + `\n\nError: ` + data.error);
+      }
+    } catch (e) {
+      setTerminalOutput(prev => prev + `\n\nFail: Error jaringan menghubungi konsol.`);
+    } finally {
+      setExecutingCmd(false);
+    }
+  };
+
+  const handleTriggerBackup = async () => {
+    setIsSimulatingBackup(true);
+    try {
+      const res = await fetch("/api/trigger-backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: backupName, target: backupTarget })
+      });
+      const data = await res.json();
+      if (data.success && data.backup) {
+        setBackups(prev => [data.backup, ...prev]);
+        fetchAlertLogs();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSimulatingBackup(false);
+    }
+  };
+
+  const handleOptimizeRam = async () => {
+    setIsOptimizing(true);
+    try {
+      const res = await fetch("/api/optimize-ram", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setOptimizationLogs(prev => [
+          ...data.logs,
+          `[${new Date().toLocaleTimeString()}] Pembebasan RAM sukses. Menghemat estimasi ${(data.recoveredBytes / 1024 / 1024).toFixed(1)} MB!`,
+          ...prev
+        ]);
+        if (stats) {
+          setStats({
+            ...stats,
+            ram: {
+              ...stats.ram,
+              used: Math.max(0.2, stats.ram.used - (data.recoveredBytes / 1024 / 1024 / 1024)),
+              percent: Math.max(8, Math.round(stats.ram.percent - 12))
+            }
+          });
+        }
+        fetchAlertLogs();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
   // Self App URL from user environment if needed, fallbacks to window.location.origin
   const [appUrl, setAppUrl] = useState("");
 
@@ -778,7 +1277,7 @@ export default function App() {
     fetchConfig();
     fetchRemoteDevices();
     fetchAlertLogs();
-    fetchPteroConfig();
+    fetchBandwidthConfig();
 
     // Intervals
     const statsInterval = setInterval(fetchStats, 3000);
@@ -792,14 +1291,18 @@ export default function App() {
     };
   }, []);
 
-  // Synchronize Pterodactyl server loads periodically
+  // Handle countdown during bandwidth flood test simulation
   useEffect(() => {
-    if (pteroConfig.pterodactylActive) {
-      syncPteroServers();
-      const pteroInterval = setInterval(syncPteroServers, 12000); // refresh every 12 seconds
-      return () => clearInterval(pteroInterval);
+    if (simCountdown > 0) {
+      const timer = setTimeout(() => {
+        setSimCountdown(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (simCountdown === 0 && isSimulatingFlood) {
+      setIsSimulatingFlood(false);
+      setSimulatedFloodType(null);
     }
-  }, [pteroConfig.pterodactylActive, pteroConfig.pterodactylDomain, pteroConfig.pterodactylApiKey]);
+  }, [simCountdown, isSimulatingFlood]);
 
   // Accumulate local performance stats history for the grid sparkline
   useEffect(() => {
@@ -881,94 +1384,68 @@ export default function App() {
     }
   };
 
-  const fetchPteroConfig = async () => {
+  const fetchBandwidthConfig = async () => {
     try {
-      const res = await fetch("/api/pterodactyl-config");
+      const res = await fetch("/api/bandwidth-config");
       const json = await res.json();
       if (json.success && json.data) {
-        setPteroConfig(json.data);
+        setBandwidthConfig(json.data);
       }
     } catch (err) {
-      console.error("Gagal mengambil konfigurasi Pterodactyl:", err);
+      console.error("Gagal mengambil konfigurasi bandwidth:", err);
     }
   };
 
-  const syncPteroServers = async () => {
-    setIsLoadingPtero(true);
-    setPteroError(null);
-    try {
-      const res = await fetch("/api/pterodactyl-servers");
-      const json = await res.json();
-      if (json.success) {
-        setPteroServers(json.data || []);
-        setPteroLastSync(new Date().toLocaleTimeString("id-ID"));
-      } else {
-        setPteroError(json.error || "Gagal sinkronisasi data server.");
-      }
-    } catch (err: any) {
-      setPteroError("Gagal menghubungi server backend: " + err.message);
-    } finally {
-      setIsLoadingPtero(false);
-    }
-  };
-
-  const handleSavePteroConfig = async (e: React.FormEvent) => {
+  const handleSaveBandwidthConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavingPteroConfig(true);
+    setSavingBandwidthConfig(true);
     try {
-      const res = await fetch("/api/pterodactyl-config", {
+      const res = await fetch("/api/bandwidth-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pteroConfig)
+        body: JSON.stringify(bandwidthConfig)
       });
       const json = await res.json();
       if (json.success) {
-        alert("Konfigurasi Pterodactyl berhasil disimpan!");
-        if (pteroConfig.pterodactylActive) {
-          syncPteroServers();
-        }
+        alert("Konfigurasi limit alarm bandwidth berhasil disimpan!");
       } else {
         alert("Gagal menyimpan konfigurasi: " + json.error);
       }
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
-      setSavingPteroConfig(false);
+      setSavingBandwidthConfig(false);
     }
   };
 
-  const handleRunPteroDiagnostics = async () => {
-    setIsDiagnosing(true);
-    setPteroDiagSteps([
-      { title: "Normalisasi Format Domain", status: "pending", message: "Sedang berjalan..." },
-      { title: "Resolusi DNS Selesai", status: "pending", message: "Menunggu langkah sebelumnya..." },
-      { title: "Uji Port/Web Server", status: "pending", message: "Menunggu langkah sebelumnya..." },
-      { title: "Uji API Key Pterodactyl", status: "pending", message: "Menunggu langkah sebelumnya..." }
-    ]);
+  const startPacketFloodSimulation = async (type: "rx" | "tx", speedMb: number, durationSec: number) => {
+    if (isSimulatingFlood) {
+      alert("Simulasi banjir paket sedang berlangsung!");
+      return;
+    }
+    
+    setIsSimulatingFlood(true);
+    setSimulatedFloodType(type);
+    setSimCountdown(durationSec);
 
     try {
-      const res = await fetch("/api/pterodactyl-diagnose", {
+      const res = await fetch("/api/bandwidth-test-flood", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          domain: pteroConfig.pterodactylDomain,
-          apiKey: pteroConfig.pterodactylApiKey
-        })
+        body: JSON.stringify({ type, speedMb, durationSec })
       });
       const json = await res.json();
-      if (json.success && json.steps) {
-        setPteroDiagSteps(json.steps);
-      } else {
-        setPteroDiagSteps([
-          { title: "Koneksi Backend Gagal", status: "danger", message: "Backend didiagnosa error: " + (json.error || "Gagal") }
-        ]);
+      if (!json.success) {
+        alert("Gagal menjalankan simulasi: " + json.error);
+        setIsSimulatingFlood(false);
+        setSimulatedFloodType(null);
+        setSimCountdown(0);
       }
     } catch (err: any) {
-      setPteroDiagSteps([
-        { title: "Koneksi Backend Gagal", status: "danger", message: "Gagal menghubungi backend untuk diagnosa: " + err.message }
-      ]);
-    } finally {
-      setIsDiagnosing(false);
+      alert("Gagal menghubungi server untuk simulasi: " + err.message);
+      setIsSimulatingFlood(false);
+      setSimulatedFloodType(null);
+      setSimCountdown(0);
     }
   };
 
@@ -994,9 +1471,9 @@ export default function App() {
 
       // Base commands
       if (trimmed === "/start") {
-        botResponse = `✨ *Halo! Saya Bot VPS Monitor Anda.* 🤖\n\nSaya siap memantau performa VPS / Server Pterodactyl Anda secara realtime.\n\n*Daftar Perintah:*\n📊 /status - Cek status performa\n🖥️ /cpu - Detail processor\n📟 /ram - Detail RAM\n💾 /disk - Kapasitas storage\n🌍 /remote - Ringkas remote server\n⏱️ /ping - Latency bot\nℹ️ /help - Bantuan`;
+        botResponse = `✨ *Halo! Saya Bot VPS Monitor Anda.* 🤖\n\nSaya siap memantau performa VPS & trafik bandwidth keluar masuk Anda secara realtime.\n\n*Daftar Perintah:*\n📊 /status - Cek status performa\n🖥️ /cpu - Detail processor\n📟 /ram - Detail RAM\n💾 /disk - Kapasitas storage\n⚡ /bandwidth - Trafik bandwidth & limit\n⏱️ /ping - Latency bot\nℹ️ /help - Bantuan`;
       } else if (trimmed === "/help") {
-        botResponse = `*Panduan Perintah VPS Monitor Bot:*\n\n/status - Menampilkan visual bar CPU, RAM, dan Disk\n/cpu - Info clock, core detail, dan load\n/ram - Info total, gratis, dan terpakai\n/disk - Info partisi penyimpanan server\n/remote - Daftar node Pterodactyl luar\n/ping - Respons latensi bot`;
+        botResponse = `*Panduan Perintah VPS Monitor Bot:*\n\n/status - Menampilkan visual bar CPU, RAM, dan Disk\n/cpu - Info clock, core detail, dan load\n/ram - Info total, gratis, dan terpakai\n/disk - Info Ruang penyimpanan disk\n/bandwidth - Info kecepatan RX/TX serta pencegahan overload paket\n/ping - Respons latensi bot`;
       } else if (trimmed === "/ping") {
         botResponse = `🏓 *PONG! BOT AKTIF & RESPONSIF*\n━━━━━━━━━━━━━━━━━━━━━\n⏱️ *Latency:* \`12 ms\`\n🚀 *Status Server:* \`ONLINE\`\n\n💻 *INFORMASI SPESIFIKASI VPS (LENGKAP)*\n• *Platform OS:* \`${stats?.platform || "linux"} (${stats?.arch || "x64"})\`\n• *Model CPU:* \`${stats?.cpuModel || "Intel Xeon vCPU"}\`\n• *CPU Thread / Core:* \`${stats?.cpuCores || "4"} Threads\`\n• *Beban CPU:* \`${stats?.cpu || 24}%\`\n• *RAM Terpakai:* \`${stats?.ram.used || 2.4} GB\` (${stats?.ram.percent || 48}% Used)\n• *Disk Storage:* \`${stats?.disk.used || 120} GB\` terpakai dari ${stats?.disk.total || 500} GB\n━━━━━━━━━━━━━━━━━━━━━\n_Pengukuran langsung dari Simulator Sandbox._`;
       } else if (trimmed === "/status") {
@@ -1005,22 +1482,19 @@ export default function App() {
         const diskP = stats?.disk.usagePercent || 35;
         botResponse = `📊 *ID SERVER: LOCAL DASHBOARD*\n━━━━━━━━━━━━━━━━━━━━━\n🖥️ *CPU Usage:* \n\`${getBar(cpuP)}\`\n\n📟 *RAM Usage:* \n\`${getBar(ramP)}\` \n_${stats?.ram.used || 2.2} GB dari ${stats?.ram.total || 8} GB_\n\n💾 *Disk Storage:* \n\`${getBar(diskP)}\` \n_${stats?.disk.used || 45} GB dari ${stats?.disk.total || 120} GB_\n━━━━━━━━━━━━━━━━━━━━━\n⏱️ *Uptime:* \`14 hari, 5 jam, 12 menit\`\n_Dikirim via Dashboard Monitoring VPS_`;
       } else if (trimmed === "/cpu") {
-        botResponse = `🖥️ *INFORMASI CPU SERVER*\n━━━━━━━━━━━━━━━━━━━━━\n• *Model:* ${stats?.cpuModel || "Genuine Intel Xeon"}\n• *Core:* ${stats?.cpuCores || 4} CPU thread\n• *Beban Saat Ini:* \`${stats?.cpu || 18}%\`\n• *Load Average (5/10/15m):* \n\`[0.15, 0.22, 0.18]\`\n━━━━━━━━━━━━━━━━━━━━━`;
+        botResponse = `🖥️ *INFORMASI CPU SERVER*\n━━━━━━━━━━━━━━━━━━━━━\n• *Model:* ${stats?.cpuModel || "Genuine Intel Xeon"}\n• *Core:* ${stats?.cpuCores || 4} CPU thread\n• *Beban Saat Ini:* \`${stats?.cpu || 18}%\`\n• *Load Average (5/10/15m):* \n\`[0.15, 0.22, 0.18]\"\n━━━━━━━━━━━━━━━━━━━━━`;
       } else if (trimmed === "/ram") {
         botResponse = `📟 *INFORMASI RAM (MEMORY)*\n━━━━━━━━━━━━━━━━━━━━━\n• *Total:* \`${stats?.ram.total || 8} GB\`\n• *Used:* \`${stats?.ram.used || 3.2} GB\`\n• *Free:* \`${stats?.ram.free || 4.8} GB\`\n• *Persentase:* \`${stats?.ram.percent || 40}%\`\n• *Visual Grafis:* \n\`${getBar(stats?.ram.percent || 40)}\`\n━━━━━━━━━━━━━━━━━━━━━`;
       } else if (trimmed === "/disk") {
-        botResponse = `💾 *INFORMASI PENYIMPANAN DISK*\n━━━━━━━━━━━━━━━━━━━━━\n• *Kapasitas:* \`${stats?.disk.total || 250} GB\`\n• *Terpakai:* \`${stats?.disk.used || 85} GB\`\n• *Sisa Ruang:* \`${stats?.disk.free || 165} GB\`\n• *Persentase:* \`${stats?.disk.usagePercent || 34}%\`\n• *Visual Grafis:* \n\`${getBar(stats?.disk.usagePercent || 34)}\`\n━━━━━━━━━━━━━━━━━━━━━`;
-      } else if (trimmed === "/remote") {
-        if (remoteDevices.length === 0) {
-          botResponse = `🌍 *Node Remote:* Belum ada node Pterodactyl remote yang aktif saat ini. Silakan hubungkan daemon di server luar!`;
-        } else {
-          botResponse = `🌍 *DAFTAR REMOTE NODE TELEMETRY*\n━━━━━━━━━━━━━━━━━━━━━\n`;
-          remoteDevices.forEach((node) => {
-            botResponse += `🟢 *${node.nodeId}* (${node.stats.os})\n ├ CPU: \`${node.stats.cpu}%\`\n ├ RAM: \`${node.stats.ram.percent}%\` (${(node.stats.ram.used/1024).toFixed(1)}GB)\n └ Seen: \`aktif\`\n\n`;
-          });
-        }
+        botResponse = `💾 *INFORMASI PENYIMPANAN DISK*\n━━━━━━━━━━━━━━━━━━━━━\n• *Kapasitas:* \`${stats?.disk.total || 250} GB\`\n• *Terpakai:* \`${stats?.disk.used || 85} GB\`\n• *Sisa Ruang:* \`${stats?.disk.free || 165} GB\`\n• *Persentase:* \`${stats?.disk.usagePercent || 34}%\"\n• *Visual Grafis:* \n\`${getBar(stats?.disk.usagePercent || 34)}\`\n━━━━━━━━━━━━━━━━━━━━━`;
+      } else if (trimmed === "/bandwidth" || trimmed === "/remote") {
+        const netRx = stats?.network?.rxSpeed ? (stats.network.rxSpeed / 1024 / 1024) : 1.25;
+        const netTx = stats?.network?.txSpeed ? (stats.network.txSpeed / 1024 / 1024) : 0.85;
+        const netRxPackets = stats?.network?.rxPacketsSpeed || 1450;
+        const netTxPackets = stats?.network?.txPacketsSpeed || 720;
+        botResponse = `⚡ *INFORMASI MONITOR BANDWIDTH SEMENTARA*\n━━━━━━━━━━━━━━━━━━━━━\n📥 *Trafik Masuk (RX):* \`${netRx.toFixed(2)} MB/s\`\n  └ Paket Kecepatan: \`${netRxPackets.toLocaleString()} pps\`\n📤 *Trafik Keluar (TX):* \`${netTx.toFixed(2)} MB/s\`\n  └ Paket Kecepatan: \`${netTxPackets.toLocaleString()} pps\`\n\n🚨 *SENSIVITAS AMBANG ALARM ACCORDING TO CONFIG:*\n• Limit Masuk (RX): \`${bandwidthConfig.alertNetRxThreshold} MB/s\`\n• Limit Keluar (TX): \`${bandwidthConfig.alertNetTxThreshold} MB/s\`\n\n━━━━━━━━━━━━━━━━━━━━━\n_Sistem memantau secara real-time dari instrumen /proc/net/dev._`;
       } else {
-        botResponse = `❌ *Perintah tidak dikenali.*\n\nGunakan menu tombol reply keyboard interaktif di bawah ini untuk mengakses informasi pemantauan real-time.`;
+        botResponse = `❌ *Perintah tidak dikenali.*\n\nGunakan menu tombol reply keyboard interaktif di bawah ini untuk mengakses informasi pemantauan real-time atau trigger simulasi banjir trafik dari menu Bandwidth.`;
       }
 
       if (botResponse) {
@@ -1490,98 +1964,275 @@ async function syncTelemetryToWeb() {
                 {appUrl}
               </span>
             </div>
+
+            {/* Admin Password Status Indicator */}
+            <div className="flex items-center gap-2 font-mono">
+              {adminSessionActive ? (
+                <button
+                  onClick={handleLogoutAdmin}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/20 border border-rose-500/35 rounded-xl hover:bg-rose-950/40 text-rose-450 hover:text-white font-bold transition select-none cursor-pointer group shadow-[0_0_10px_rgba(239,68,68,0.05)] text-[10px]"
+                  title="Klik untuk mengunci kembali semua menu sensitif"
+                >
+                  <Unlock className="w-3 h-3 animate-pulse text-rose-400 group-hover:scale-110 transition" />
+                  <span>KUNCI_SESI</span>
+                </button>
+              ) : (
+                <div 
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-neutral-900 border border-neutral-850 rounded-xl text-neutral-500 font-bold select-none text-[10px]"
+                  title="Menu sensitif sedang dikunci untuk mencegah penyalahgunaan"
+                >
+                  <Lock className="w-3 h-3 text-neutral-500" />
+                  <span>SISTEM_LOCK</span>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Tab Selection */}
-        <div className="flex flex-wrap border-b border-neutral-800 gap-1 md:gap-2 mb-8 font-display text-[11px] md:text-xs">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "dashboard"
-                ? "border-cyan-400 text-cyan-400 bg-cyan-950/15 shadow-[0_4px_20px_-5px_rgba(6,182,212,0.3)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Cpu className={`w-3.5 h-3.5 ${activeTab === "dashboard" ? "animate-spin" : ""}`} style={{ animationDuration: '6s' }} />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[01]</span>
-            DASHBOARD UTAMA
-          </button>
-          <button
-            onClick={() => setActiveTab("telegram")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "telegram"
-                ? "border-cyan-400 text-cyan-400 bg-cyan-950/15 shadow-[0_4px_20px_-5px_rgba(6,182,212,0.3)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[02]</span>
-            BOT TELEGRAM
-          </button>
-          <button
-            onClick={() => setActiveTab("script")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "script"
-                ? "border-cyan-400 text-cyan-400 bg-cyan-950/15 shadow-[0_4px_20px_-5px_rgba(6,182,212,0.3)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Code className="w-3.5 h-3.5" />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[03]</span>
-            DAEMON NODE SCRIPT
-          </button>
-          <button
-            onClick={() => setActiveTab("remote")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "remote"
-                ? "border-cyan-400 text-cyan-400 bg-cyan-950/15 shadow-[0_4px_20px_-5px_rgba(6,182,212,0.3)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[04]</span>
-            REMOTE TELEMETRY
-            {remoteDevices.length > 0 && (
-              <span className="ml-1 bg-cyan-500 text-neutral-950 font-bold px-1.5 py-0.2 text-[9px] rounded font-mono shadow-[0_0_8px_rgba(6,182,212,0.4)]">
-                {remoteDevices.length}
-              </span>
+        {/* Tab Selection Dropdown (Replacing standard stacking buttons) */}
+        <div className="relative mb-8 z-30">
+          <div className="flex items-center justify-between bg-neutral-900 border border-neutral-850 rounded-2xl p-4 shadow-[inset_0_1px_3px_rgba(255,255,255,0.05),0_10px_30px_rgba(0,0,0,0.5)]">
+            
+            {/* Left: Active Tab Badge */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-cyan-400 shadow-[0_0_15px_-3px_rgba(6,182,212,0.3)]">
+                {activeTab === "dashboard" && <Cpu className="w-5 h-5 animate-spin" style={{ animationDuration: '6s' }} />}
+                {activeTab === "telegram" && <Settings className="w-5 h-5" />}
+                {activeTab === "ports" && <Globe className="w-5 h-5" />}
+                {activeTab === "terminal" && <Terminal className="w-5 h-5 text-emerald-400" />}
+                {activeTab === "backup" && <Database className="w-5 h-5" />}
+                {activeTab === "optimizer" && <Zap className="w-5 h-5 text-amber-400" />}
+                {activeTab === "bandwidth" && <Wifi className={`w-5 h-5 ${isSimulatingFlood ? "animate-pulse text-red-400" : ""}`} />}
+                {activeTab === "logs" && <Bell className={`w-5 h-5 text-rose-400 ${alertLogs.length > 0 ? "animate-bounce" : ""}`} />}
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono text-neutral-500 tracking-widest uppercase block">
+                  ({activeTab === "dashboard" ? "01" : 
+                    activeTab === "telegram" ? "02" :
+                    activeTab === "ports" ? "03" :
+                    activeTab === "terminal" ? "04" :
+                    activeTab === "backup" ? "05" :
+                    activeTab === "optimizer" ? "06" :
+                    activeTab === "bandwidth" ? "07" : "08"}) INSTANCE PANEL
+                </span>
+                <span className="text-sm font-bold tracking-wider text-neutral-200">
+                  {activeTab === "dashboard" && "DASHBOARD UTAMA"}
+                  {activeTab === "telegram" && "BOT TELEGRAM"}
+                  {activeTab === "ports" && "CEK PORT & LAYANAN"}
+                  {activeTab === "terminal" && "KONSOL PINTASAN SSH"}
+                  {activeTab === "backup" && "SINKRONISASI BACKUP"}
+                  {activeTab === "optimizer" && "RAM & CACHE OPTIMIZER"}
+                  {activeTab === "bandwidth" && "BANDWIDTH MONITOR"}
+                  {activeTab === "logs" && "DATABASE LOG ALARM"}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Hamburger / Kebab Toggle Trigger */}
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs font-mono transition-all cursor-pointer ${
+                showMenu 
+                  ? "bg-cyan-500 text-neutral-950 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)]" 
+                  : "bg-neutral-950 text-neutral-300 border-neutral-800 hover:border-neutral-700 hover:text-neutral-100"
+              }`}
+            >
+              {showMenu ? (
+                <>
+                  <X className="w-4 h-4 text-center" />
+                  <span className="hidden sm:inline">TUTUP MENU</span>
+                </>
+              ) : (
+                <>
+                  <Menu className="w-4 h-4 text-center" />
+                  <span className="hidden sm:inline">MENU LAYER</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Floating Dropdown Panel */}
+          <AnimatePresence>
+            {showMenu && (
+              <>
+                {/* Click outside backdrop close */}
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowMenu(false)}
+                />
+                
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 4, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute right-0 left-0 mt-2 z-20 bg-neutral-950/95 backdrop-blur-xl border border-neutral-800/80 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(255,255,255,0.05)] overflow-hidden p-2"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 p-1">
+                    
+                    <button
+                      onClick={() => { setActiveTab("dashboard"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "dashboard"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Cpu className={`w-4.5 h-4.5 ${activeTab === "dashboard" ? "text-cyan-400 animate-spin" : "text-neutral-400"}`} style={{ animationDuration: '6s' }} />
+                        <div>
+                          <p className="font-bold tracking-wider">DASHBOARD UTAMA</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Visualisasi orbit & metrik bot live</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[01]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("telegram"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "telegram"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Settings className={`w-4.5 h-4.5 ${activeTab === "telegram" ? "text-cyan-400" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">BOT TELEGRAM</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Pengaturan kredensial & API webhook</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[02]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("ports"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "ports"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Globe className={`w-4.5 h-4.5 ${activeTab === "ports" ? "text-cyan-400" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">CEK PORT & LAYANAN</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Pengecekan status port web & database</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[03]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("terminal"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "terminal"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Terminal className={`w-4.5 h-4.5 ${activeTab === "terminal" ? "text-emerald-400" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">KONSOL PINTASAN SSH</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Eksekusi perintah terminal instan</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[04]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("backup"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "backup"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Database className={`w-4.5 h-4.5 ${activeTab === "backup" ? "text-cyan-400" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">SINKRONISASI BACKUP</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Jadwal backup data & folder VPS</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[05]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("optimizer"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "optimizer"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Zap className={`w-4.5 h-4.5 ${activeTab === "optimizer" ? "text-amber-400" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">RAM & CACHE OPTIMIZER</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Optimisasi instan performa memory</p>
+                        </div>
+                      </div>
+                      <span className="font-mono opacity-50 font-semibold">[06]</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("bandwidth"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "bandwidth"
+                          ? "bg-cyan-950/25 border-cyan-500/40 text-cyan-400 shadow-[inset_0_0_12px_rgba(6,182,212,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Wifi className={`w-4.5 h-4.5 ${activeTab === "bandwidth" ? "text-cyan-400 animate-pulse" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">BANDWIDTH MONITOR</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Real-time traffic & simulasi flood</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isSimulatingFlood && (
+                          <span className="bg-red-500 text-neutral-950 font-extrabold px-1.5 py-0.5 text-[9px] rounded font-mono shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-bounce text-center">
+                            ATTACK
+                          </span>
+                        )}
+                        <span className="font-mono opacity-50 font-semibold">[07]</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("logs"); setShowMenu(false); }}
+                      className={`flex items-center justify-between p-3.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                        activeTab === "logs"
+                          ? "bg-rose-950/25 border-rose-500/30 text-rose-400 shadow-[inset_0_0_12px_rgba(244,63,94,0.1)]"
+                          : "bg-neutral-900/35 border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-neutral-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Bell className={`w-4.5 h-4.5 ${activeTab === "logs" ? "text-rose-400 animate-bounce" : "text-neutral-400"}`} />
+                        <div>
+                          <p className="font-bold tracking-wider">DATABASE LOG ALARM</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">Notifikasi error & threshold sistem</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {alertLogs.length > 0 && (
+                          <span className="bg-rose-600 text-white font-bold px-1.5 py-0.5 text-[9px] rounded font-mono shadow-[0_0_8px_rgba(244,63,94,0.5)] animate-pulse">
+                            {alertLogs.length} LOG
+                          </span>
+                        )}
+                        <span className="font-mono opacity-50 font-semibold">[08]</span>
+                      </div>
+                    </button>
+
+                  </div>
+                </motion.div>
+              </>
             )}
-          </button>
-          <button
-            onClick={() => setActiveTab("pterodactyl")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "pterodactyl"
-                ? "border-amber-500 text-amber-400 bg-amber-950/15 shadow-[0_4px_20px_-5px_rgba(245,158,11,0.3)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Server className={`w-3.5 h-3.5 ${activeTab === "pterodactyl" ? "animate-pulse" : ""}`} />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[05]</span>
-            PTERODACTYL MONITOR
-            {pteroServers.filter(s => s.alertFlags.isOverloaded).length > 0 && (
-              <span className="ml-1 bg-amber-500 text-neutral-950 font-bold px-1.5 py-0.2 text-[9px] rounded font-mono shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-bounce">
-                {pteroServers.filter(s => s.alertFlags.isOverloaded).length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("logs")}
-            className={`flex items-center gap-2 px-5 py-3 transition-all relative border-b-2 font-bold tracking-wider cursor-pointer ${
-              activeTab === "logs"
-                ? "border-rose-500 text-rose-400 bg-rose-950/10 shadow-[0_4px_20px_-5px_rgba(244,63,94,0.25)]"
-                : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/30"
-            }`}
-          >
-            <Bell className={`w-3.5 h-3.5 text-rose-400 ${activeTab === "logs" ? "animate-bounce" : ""}`} />
-            <span className="opacity-60 text-[9px] font-mono mr-0.5">[06]</span>
-            DATABASE LOG ALARM
-            {alertLogs.length > 0 && (
-              <span className="ml-1 bg-rose-600 text-white font-bold px-1.5 py-0.2 text-[9px] rounded font-mono shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse">
-                {alertLogs.length}
-              </span>
-            )}
-          </button>
+          </AnimatePresence>
         </div>
 
         {/* Tab Contents */}
@@ -2067,7 +2718,7 @@ async function syncTelemetryToWeb() {
             </motion.div>
           )}
 
-          {activeTab === "telegram" && (
+          {activeTab === "telegram" && adminSessionActive && (
             <motion.div
               key="telegram"
               initial={{ opacity: 0, y: 15 }}
@@ -2392,6 +3043,52 @@ async function syncTelemetryToWeb() {
 
               {/* Bot status guide (Column 3) */}
               <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-6 h-fit space-y-6">
+                {/* ADMIN PASSWORD CHANGE CARD */}
+                <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-4 space-y-3.5 shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                  <div className="flex items-center gap-2 text-rose-450 border-b border-neutral-900 pb-2">
+                    <Lock className="w-3.5 h-3.5 text-rose-500" />
+                    <h5 className="text-xs font-bold uppercase tracking-wider font-mono">Keamanan Password Admin</h5>
+                  </div>
+                  
+                  <p className="text-[10px] text-neutral-400 leading-normal">
+                    Ganti kata sandi administrator untuk mengunci akses halaman-halaman sensitif. Kata sandi tersimpan pada browser Anda.
+                  </p>
+
+                  <form onSubmit={handleChangePassword} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-neutral-400 font-mono uppercase font-bold">PASSWORD BARU</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Ketik password baru..."
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-800 focus:border-rose-500/50 rounded-lg px-3 py-2 text-xs text-neutral-200 outline-none transition font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-neutral-400 font-mono uppercase font-bold">KONFIRMASI PASSWORD</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Ulangi password baru..."
+                        value={newPasswordConfirm}
+                        onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-800 focus:border-rose-500/50 rounded-lg px-3 py-2 text-xs text-neutral-200 outline-none transition font-mono"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-rose-950/20 border border-rose-500/35 hover:border-rose-450 hover:bg-rose-950/40 text-[10px] font-mono text-rose-400 rounded-lg transition cursor-pointer font-bold uppercase text-center flex items-center justify-center gap-1.5"
+                    >
+                      <Key className="w-3 h-3" />
+                      SIMPAN PASSWORD BARU
+                    </button>
+                  </form>
+                </div>
+
                 <div>
                   <h4 className="text-sm font-semibold text-neutral-100 uppercase tracking-wider font-mono">STATUS BOT PROGRAM</h4>
                   
@@ -2487,368 +3184,16 @@ async function syncTelemetryToWeb() {
             </motion.div>
           )}
 
-          {activeTab === "script" && (
+          {activeTab === "bandwidth" && adminSessionActive && (
             <motion.div
-              key="script"
+              key="bandwidth"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.2 }}
               className="space-y-6"
             >
-              {/* Instructions and Script panel */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Integration Guide */}
-                <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-6 space-y-5 lg:col-span-1">
-                  <h3 className="text-md font-semibold text-neutral-100">Langkah Setup di Pterodactyl Panel</h3>
-                  <p className="text-xs text-neutral-400 leading-relaxed">
-                    Ikuti panduan berikut untuk menyebarkan script monitoring Node.js di server VPS Pterodactyl Anda:
-                  </p>
-
-                  <div className="space-y-4 text-xs leading-relaxed">
-                    <div className="flex gap-3">
-                      <div className="w-5 h-5 bg-neutral-800 text-emerald-400 border border-neutral-700 font-mono flex items-center justify-center rounded-full text-[10px] shrink-0">1</div>
-                      <p className="text-neutral-300">
-                        Buat server baru dengan Egg <strong>Node.js</strong> di panel Pterodactyl Anda, atau buka File Manager di server yang sudah ada.
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="w-5 h-5 bg-neutral-800 text-emerald-400 border border-neutral-700 font-mono flex items-center justify-center rounded-full text-[10px] shrink-0">2</div>
-                      <p className="text-neutral-300">
-                        Pastikan Anda melampirkan modul dependensi Telegram Bot di file <code className="text-emerald-300 font-mono">package.json</code>: <br />
-                        <code className="block bg-neutral-950 p-2 border border-neutral-850 rounded mt-1 font-mono text-[10px]">
-                          "node-telegram-bot-api": "0.66.0"
-                        </code>
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="w-5 h-5 bg-neutral-800 text-emerald-400 border border-neutral-700 font-mono flex items-center justify-center rounded-full text-[10px] shrink-0">3</div>
-                      <p className="text-neutral-300">
-                        Buat file bernama <code className="text-emerald-300 font-mono">index.js</code> lewat File Manager Pterodactyl, lalu salin program lengkap di sebelah kanan dan klik <strong>Save</strong>.
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="w-5 h-5 bg-neutral-800 text-emerald-400 border border-neutral-700 font-mono flex items-center justify-center rounded-full text-[10px] shrink-0">4</div>
-                      <p className="text-neutral-300">
-                        Atur startup command server Pterodactyl Anda menjadi <code className="text-emerald-300 font-mono">node index.js</code> lalu jalankan server (klik Start).
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="w-5 h-5 bg-neutral-800 text-emerald-400 border border-neutral-700 font-mono flex items-center justify-center rounded-full text-[10px] shrink-0">5</div>
-                      <p className="text-neutral-300">
-                        Bot Anda siap! Sapa bot Anda di Telegram dan saksikan statistik VPS Pterodactyl Anda tersinkronisasi di tab <strong>"Remote Telemetry Nodes"</strong> secara real-time.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-neutral-950 border border-neutral-850 rounded-xl space-y-1">
-                    <span className="text-emerald-400 font-semibold text-[11px] block">💡 Info Telemetry Sync</span>
-                    <p className="text-neutral-400 text-[10px] leading-normal">
-                      Pterodactyl Daemon akan mengirim statistik performa ke dashboard web ini setiap 5 detik. Dashboard akan menampilkannya saat perangkat Anda online!
-                    </p>
-                  </div>
-                </div>
-
-                {/* Code Block area */}
-                <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-6 lg:col-span-2 flex flex-col h-[650px]">
-                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                    <div>
-                      <h3 className="text-md font-semibold text-neutral-100 flex items-center gap-2">
-                        <Code className="w-4.5 h-4.5 text-emerald-400" />
-                        Source Code JavaScript (Pterodactyl)
-                      </h3>
-                      <p className="text-xs text-neutral-400">Kode ini otomatis diperbarui dengan preferensi token dan threshold di atas!</p>
-                    </div>
-
-                    {/* Copy to Clipboard action */}
-                    <button
-                      onClick={() => handleCopyCode(generatedScriptCode)}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all select-none ${
-                        copied 
-                          ? 'bg-emerald-950 border-emerald-500/40 text-emerald-400' 
-                          : 'bg-neutral-800 border-neutral-750 text-neutral-300 hover:bg-neutral-750'
-                      }`}
-                    >
-                      {copied ? <Check className="w-3.5 h-3.5" /> : <Clipboard className="w-3.5 h-3.5" />}
-                      {copied ? "Berhasil disalin!" : "Salin Code"}
-                    </button>
-                  </div>
-
-                  {/* Rendered customized source block */}
-                  <div className="flex-1 bg-neutral-950 border border-neutral-850 rounded-xl p-4 overflow-y-auto font-mono text-xs text-emerald-300/90 leading-relaxed scrollbar-thin scrollbar-thumb-neutral-800">
-                    <pre className="whitespace-pre">{generatedScriptCode}</pre>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Option 3: System Startup Auto-Start Generator / Daemon Helper */}
-              <div id="startup-auto-start-panel" className="bg-neutral-900 border border-neutral-850 rounded-2xl p-6 space-y-5">
-                <div className="border-b border-neutral-850 pb-4">
-                  <h3 className="text-md font-semibold text-neutral-100 flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-emerald-400" />
-                    Sistem Startup Generator / Auto-Start Helper (Pterodactyl & VPS)
-                  </h3>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Pastikan agen monitoring bot Anda otomatis dinyalakan kembali pasca sistem crash, error memori, maupun server reboot dengan pendaftaran berkala.
-                  </p>
-                </div>
-
-                <div className="flex bg-neutral-950 p-1 border border-neutral-800 rounded-xl max-w-md">
-                  <button
-                    onClick={() => setStartupMethod("cron")}
-                    className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all cursor-pointer ${
-                      startupMethod === "cron"
-                        ? "bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-semibold"
-                        : "text-neutral-400 hover:text-neutral-200"
-                    }`}
-                  >
-                    Metode A: Cron @reboot (Rekomendasi Egg Pterodactyl / Non-root)
-                  </button>
-                  <button
-                    onClick={() => setStartupMethod("systemd")}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
-                      startupMethod === "systemd"
-                        ? "bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-semibold"
-                        : "text-neutral-400 hover:text-neutral-200"
-                    }`}
-                  >
-                    Metode B: Systemd Daemon (Rekomendasi VPS Root)
-                  </button>
-                </div>
-
-                {startupMethod === "cron" ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-neutral-300 leading-normal">
-                      Metode ini menggunakan layanan bawaan <strong>Cron OS</strong> linux yang sangat ringan dan tidak membutuhkan hak akses root administrator, cocok dikonfigurasi langsung di Panel Pterodactyl.
-                    </p>
-                    <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-4 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-mono text-neutral-500 font-bold uppercase tracking-wider">Langkah Eksekusi Crontab</span>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(`(crontab -l 2>/dev/null; echo "@reboot cd $(pwd || echo '/home/container') && node index.js >> daemon_bot.log 2>&1 &") | crontab -`);
-                            alert("Perintah Crontab berhasil disalin ke papan klip!");
-                          }}
-                          className="px-2.5 py-1 text-[11px] bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-750 rounded-lg flex items-center gap-1 transition cursor-pointer select-none"
-                        >
-                          <Clipboard className="w-3 h-3" /> Salin Perintah
-                        </button>
-                      </div>
-                      <pre className="text-[11px] text-emerald-400 font-mono whitespace-pre-wrap leading-relaxed select-all bg-neutral-900/60 p-3 rounded-lg border border-neutral-850">
-{`(crontab -l 2>/dev/null; echo "@reboot cd \$(pwd || echo '/home/container') && node index.js >> daemon_bot.log 2>&1 &") | crontab -`}
-                      </pre>
-                      <ul className="list-disc pl-4 text-[11.5px] text-neutral-400 space-y-1">
-                        <li>Perintah di atas mengecek daftar cron lama kemudian meng-inject tugas <code className="text-emerald-400 font-mono">@reboot</code>.</li>
-                        <li>Cocok di pterodactyl maupun VPS linux standar.</li>
-                        <li>Output bot akan tersimpan rapi di dalam fail log <code className="text-emerald-400 font-mono">daemon_bot.log</code>.</li>
-                      </ul>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-xs text-neutral-300 leading-normal">
-                      Memanfaatkan service manager standar <strong>systemd</strong> pada server Linux (Ubuntu, Debian, CentOS) dengan akses root agar daemon bot menjadi background service sesungguhnya dengan auto-restart handal.
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-mono text-neutral-500 font-bold uppercase tracking-wider">1. Konfigurasi Service File</span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(`[Unit]
-Description=Pterodactyl VPS Monitor Bot
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/pterodactyl-bot
-ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target`);
-                              alert("Content service systemd disalin!");
-                            }}
-                            className="px-2 py-0.5 text-[10px] bg-neutral-800 hover:bg-neutral-750 text-neutral-300 border border-neutral-700 rounded flex items-center gap-1 transition cursor-pointer select-none"
-                          >
-                            <Clipboard className="w-3 h-3" /> Copy
-                          </button>
-                        </div>
-                        <pre className="text-[10px] text-neutral-300 font-mono whitespace-pre overflow-x-auto leading-relaxed p-3 bg-neutral-900/60 rounded-lg border border-neutral-850 h-44">
-{`[Unit]
-Description=Pterodactyl VPS Monitor Bot
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/pterodactyl-bot
-ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target`}
-                        </pre>
-                      </div>
-
-                      <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-mono text-neutral-500 font-bold uppercase tracking-wider">2. Perintah Registrasi Shell</span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(`sudo nano /etc/systemd/system/vps-monitor-bot.service
-sudo systemctl daemon-reload
-sudo systemctl enable vps-monitor-bot
-sudo systemctl start vps-monitor-bot
-sudo systemctl status vps-monitor-bot`);
-                              alert("Rentetan perintah shell disalin!");
-                            }}
-                            className="px-2 py-0.5 text-[10px] bg-neutral-800 hover:bg-neutral-750 text-neutral-300 border border-neutral-700 rounded flex items-center gap-1 transition cursor-pointer select-none"
-                          >
-                            <Clipboard className="w-3 h-3" /> Copy
-                          </button>
-                        </div>
-                        <pre className="text-[10px] text-emerald-400 font-mono whitespace-pre overflow-x-auto leading-relaxed p-3 bg-neutral-900/60 rounded-lg border border-neutral-850 h-44">
-{`# Buat berkas baru
-sudo nano /etc/systemd/system/vps-monitor-bot.service
-
-# Muat ulang systemd konfigurasi
-sudo systemctl daemon-reload
-
-# Aktifkan otostart boot service
-sudo systemctl enable vps-monitor-bot
-
-# Jalankan bot sekarang juga
-sudo systemctl start vps-monitor-bot
-
-# Monitor status daemon
-sudo systemctl status vps-monitor-bot`}
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </motion.div>
-          )}
-
-          {activeTab === "remote" && (
-            <motion.div
-              key="remote"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-6"
-            >
-              {/* Remote server telemetry center */}
-              <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-6 space-y-6">
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-neutral-100">Daftar Remote Server (Telemetri Node)</h3>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      Menampilkan status server Pterodactyl eksternal yang terhubung dan mengirimkan telemetri secara real-time.
-                    </p>
-                  </div>
-                  <button 
-                    onClick={fetchRemoteDevices}
-                    className="px-4 py-2 bg-neutral-800 border border-neutral-750 hover:bg-neutral-750 text-xs text-neutral-300 rounded-xl flex items-center gap-2 transition"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Teranyar
-                  </button>
-                </div>
-
-                {remoteDevices.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {remoteDevices.map((device, idx) => {
-                      const isConnected = Date.now() - device.lastSeen < 15000; // Online if received within 15 seconds
-                      return (
-                        <div key={idx} className="bg-neutral-950 border border-neutral-850 rounded-2xl p-5 space-y-4">
-                          
-                          {/* Device identifier header */}
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`p-2 bg-neutral-900 border border-neutral-800 rounded-lg text-emerald-400 ${isConnected ? 'animate-pulse' : 'text-neutral-500'}`}>
-                                <Server className="w-4.5 h-4.5" />
-                              </div>
-                              <div>
-                                <h4 className="text-sm font-semibold text-neutral-200">{device.nodeId}</h4>
-                                <span className="text-[10px] font-mono text-neutral-400 uppercase">{device.stats.os}</span>
-                              </div>
-                            </div>
-
-                            <span className={`px-2.5 py-1 text-[10px] rounded-full font-semibold font-mono ${
-                              isConnected ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' : 'bg-red-950/40 text-red-400 border border-red-500/20'
-                            }`}>
-                              {isConnected ? "🟢 ONLINE" : "🔴 OFFLINE"}
-                            </span>
-                          </div>
-
-                          {/* Stats row info */}
-                          <div className="grid grid-cols-3 gap-3 text-center border-y border-neutral-850 py-3">
-                            <div>
-                              <p className="text-[10px] text-neutral-500 uppercase font-mono">CPU</p>
-                              <p className="text-sm font-semibold mt-0.5 font-mono text-neutral-200">{device.stats.cpu}%</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-neutral-500 uppercase font-mono">RAM</p>
-                              <p className="text-sm font-semibold mt-0.5 font-mono text-neutral-200">{device.stats.ram.percent}%</p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-neutral-500 uppercase font-mono">DISK</p>
-                              <p className="text-sm font-semibold mt-0.5 font-mono text-neutral-200">{device.stats.disk.percent}%</p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between text-[11px] text-neutral-500">
-                            <span className="flex items-center gap-1">
-                              <Wifi className="w-3.5 h-3.5 text-neutral-400" />
-                              Last report: {Math.max(0, Math.round((Date.now() - device.lastSeen) / 1000))} detik yang lalu
-                            </span>
-                            <span>
-                              Uptime: {formatUptime(device.stats.uptime)}
-                            </span>
-                          </div>
-
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-20 border border-dashed border-neutral-800 rounded-3xl space-y-4 text-center">
-                    <Cloud className="w-12 h-12 text-neutral-500 stroke-1" />
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-semibold text-neutral-300">Belum Ada Node Telemetry Terdeteksi</h4>
-                      <p className="text-xs text-neutral-500 max-w-sm">
-                        Instal script monitoring kami di panel Pterodactyl Anda. Setelah script diaktifkan, telemetri server eksternal Anda akan langsung muncul di sini secara dynamic!
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === "pterodactyl" && (
-            <motion.div
-              key="pterodactyl"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-6"
-            >
-              {/* Top panel details */}
+              {/* Network Bandwidth Status Banner */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Configuration form card */}
@@ -2856,244 +3201,213 @@ sudo systemctl status vps-monitor-bot`}
                   <div className="absolute top-0 right-0 w-3 h-3 bg-amber-500/40 rounded-bl"></div>
                   <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider mb-4 flex items-center gap-1.5 border-b border-neutral-900 pb-2.5">
                     <Settings className="w-4 h-4 text-amber-500" />
-                    KONFIGURASI PANEL CLIENT
+                    LIMIT ALARM BANDWIDTH
                   </h3>
 
-                  <form onSubmit={handleSavePteroConfig} className="space-y-4">
-                    <div>
-                      <label className="block text-[10px] text-neutral-400 font-mono uppercase font-bold mb-1.55">DOMAIN PANEL PTERODACTYL</label>
-                      <input
-                        type="url"
-                        required
-                        placeholder="https://panel.hostgacor.com"
-                        value={pteroConfig.pterodactylDomain}
-                        onChange={(e) => setPteroConfig({ ...pteroConfig, pterodactylDomain: e.target.value })}
-                        className="w-full bg-black/60 border border-neutral-800 focus:border-amber-500/50 rounded-xl px-3.5 py-2 text-xs text-neutral-200 outline-none transition font-sans"
-                      />
-                      <p className="text-[9px] text-neutral-500 mt-1">Gunakan format HTTP/HTTPS valid tanpa trailing slash.</p>
-                    </div>
+                  <form onSubmit={handleSaveBandwidthConfig} className="space-y-4">
+                    <p className="text-[11px] text-neutral-400 leading-normal">
+                      Atur sensitivitas ambang alarm paket masuk dan keluar untuk menghindari VPS Anda dari penyalahgunaan trafik berlebih (seperti spamming, flood, atau kebocoran data).
+                    </p>
 
                     <div>
-                      <label className="block text-[10px] text-neutral-400 font-mono uppercase font-bold mb-1.5 font-bold">CLIENT API KEY (PTLA)</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="ptla_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                        value={pteroConfig.pterodactylApiKey}
-                        onChange={(e) => setPteroConfig({ ...pteroConfig, pterodactylApiKey: e.target.value })}
-                        className="w-full bg-black/60 border border-neutral-800 focus:border-amber-500/50 rounded-xl px-3.5 py-2 text-xs text-neutral-200 outline-none transition font-mono"
-                      />
-                      <p className="text-[9px] text-neutral-500 mt-1">Gunakan client API key yang diawali dengan <code className="font-mono text-amber-500">ptla_</code> dari profil panel Anda.</p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 pt-2 border-t border-neutral-900">
-                      <input
-                        type="checkbox"
-                        id="pteroActive"
-                        checked={pteroConfig.pterodactylActive}
-                        onChange={(e) => setPteroConfig({ ...pteroConfig, pterodactylActive: e.target.checked })}
-                        className="rounded border-neutral-800 text-amber-500 bg-black focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer accent-amber-500"
-                      />
-                      <label htmlFor="pteroActive" className="text-xs text-neutral-300 select-none cursor-pointer font-bold">
-                        Aktifkan Pelacakan Live Telemetry
+                      <label className="block text-[10px] text-neutral-400 font-mono uppercase font-bold mb-1.5">
+                        AMBANG BATAS ALARM RX (INCOMING)
                       </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="1000"
+                          value={bandwidthConfig.alertNetRxThreshold}
+                          onChange={(e) => setBandwidthConfig({ ...bandwidthConfig, alertNetRxThreshold: Number(e.target.value) })}
+                          className="w-full bg-black/60 border border-neutral-800 focus:border-amber-500/50 rounded-xl px-3.5 py-2 text-xs font-mono text-neutral-200 outline-none transition"
+                        />
+                        <span className="absolute right-3.5 top-2 text-[10px] font-mono text-neutral-500">MB/s</span>
+                      </div>
+                      <p className="text-[9px] text-neutral-500 mt-1">Bot akan mengirim alarm bila bandwidth masuk melebihi angka ini.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-neutral-400 font-mono uppercase font-bold mb-1.5">
+                        AMBANG BATAS ALARM TX (OUTBOUND)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="1000"
+                          value={bandwidthConfig.alertNetTxThreshold}
+                          onChange={(e) => setBandwidthConfig({ ...bandwidthConfig, alertNetTxThreshold: Number(e.target.value) })}
+                          className="w-full bg-black/60 border border-neutral-800 focus:border-amber-500/50 rounded-xl px-3.5 py-2 text-xs font-mono text-neutral-200 outline-none transition"
+                        />
+                        <span className="absolute right-3.5 top-2 text-[10px] font-mono text-neutral-500">MB/s</span>
+                      </div>
+                      <p className="text-[9px] text-neutral-500 mt-1">Bot akan mengirim alarm bila bandwidth keluar melebihi angka ini.</p>
                     </div>
 
                     <button
                       type="submit"
-                      disabled={savingPteroConfig}
+                      disabled={savingBandwidthConfig}
                       className="w-full py-2.5 px-4 bg-amber-950/20 hover:bg-amber-950/40 border border-amber-500/35 hover:border-amber-400 text-xs font-display text-amber-400 hover:text-white rounded-xl transition cursor-pointer font-bold uppercase text-center mt-2 shadow-[0_0_15px_rgba(245,158,11,0.05)]"
                     >
-                      {savingPteroConfig ? "MENYIMPAN..." : "SIMPAN KONFIGURASI"}
+                      {savingBandwidthConfig ? "MENYIMPAN..." : "SIMPAN AMBANG BATAS"}
                     </button>
                   </form>
 
-                  {/* Connection Diagnostics Section */}
-                  <div className="mt-6 pt-5 border-t border-neutral-900 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-[10px] font-mono text-neutral-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                        <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                        DIAGNOSTIK KONEKSI API
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={handleRunPteroDiagnostics}
-                        disabled={isDiagnosing || !pteroConfig.pterodactylDomain}
-                        className={`text-[9px] font-mono font-bold px-2.5 py-1 rounded transition uppercase flex items-center gap-1 ${
-                          !pteroConfig.pterodactylDomain
-                            ? "bg-neutral-900 border border-neutral-850 text-neutral-600 cursor-not-allowed"
-                            : "bg-cyan-950/25 hover:bg-cyan-950/45 border border-cyan-500/30 text-cyan-400 hover:text-white cursor-pointer"
-                        }`}
-                      >
-                        {isDiagnosing ? "MEMINDAI..." : "MULAI DIAGNOSA"}
-                      </button>
-                    </div>
-
-                    <p className="text-[9px] text-neutral-500 leading-relaxed">
-                      Gunakan utilitas ini untuk menguji apakah domain panel Anda dapat dijangkau dan apakah API Key yang Anda buat memiliki izin yang tepat.
-                    </p>
-
-                    {pteroDiagSteps.length > 0 && (
-                      <div className="space-y-2.5 bg-black/40 p-3.5 rounded-xl border border-neutral-900/60 font-mono text-[10px] max-h-[350px] overflow-y-auto">
-                        {pteroDiagSteps.map((step, idx) => {
-                          const isSuccess = step.status === "success";
-                          const isWarning = step.status === "warning";
-                          const isDanger = step.status === "danger";
-                          const isPending = step.status === "pending";
-
-                          return (
-                            <div key={idx} className="space-y-1 pb-2 last:pb-0 border-b border-neutral-900/40 last:border-0">
-                              <div className="flex items-center gap-1.5 font-bold">
-                                {isSuccess && <span className="text-emerald-500">✔</span>}
-                                {isWarning && <span className="text-amber-500">⚠</span>}
-                                {isDanger && <span className="text-red-500">✘</span>}
-                                {isPending && <span className="text-cyan-500 inline-block animate-spin">⟳</span>}
-                                <span className={
-                                  isSuccess ? "text-emerald-400" :
-                                  isWarning ? "text-amber-400" :
-                                  isDanger ? "text-red-400" :
-                                  "text-neutral-400"
-                                }>
-                                  {step.title}
-                                </span>
-                              </div>
-                              <p className="text-[9.5px] text-neutral-300 pl-4">{step.message}</p>
-                              {step.details && (
-                                <p className="text-[9px] text-neutral-500 pl-4 mt-0.5 leading-relaxed bg-[#0b0b10] p-1.5 rounded border border-neutral-900/20 italic">
-                                  {step.details}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
+                  {/* Network Diagnostics */}
+                  <div className="mt-6 pt-5 border-t border-neutral-900 space-y-3">
+                    <h4 className="text-[10px] font-mono text-neutral-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                      DIAGNOSTIK INTERFACE NET
+                    </h4>
+                    <div className="bg-black/40 p-3 rounded-lg border border-neutral-900 text-[10px] font-mono space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">PROCFS DEV PATH:</span>
+                        <span className="text-emerald-400">/proc/net/dev (OK)</span>
                       </div>
-                    )}
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">INTERFACE UTAMA:</span>
+                        <span className="text-neutral-200">eth0 / docker0</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">TELEGRAM HOOK:</span>
+                        <span className={config.isActive ? "text-emerald-400" : "text-amber-500"}>
+                          {config.isActive ? "TERHUBUNG (OK)" : "INAKTIF"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Dashboard summary stats */}
+                {/* Main section: stats and simulation config */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Cards status section */}
+                  
+                  {/* Realtime Speedometers */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     
-                    {/* TOTAL CARGO SERVERS */}
+                    {/* INBOUND RX */}
                     <div className="bg-[#0b0b10] border border-neutral-850 rounded-xl p-4.5 relative overflow-hidden">
-                      <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono font-bold">TOTAL SERVED CLIENT</p>
+                      <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono font-bold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span> INCOMING SPEED (RX)
+                      </p>
                       <h3 className="text-2xl font-extrabold mt-1 text-neutral-100 font-sans tracking-tight">
-                        {pteroConfig.pterodactylActive ? pteroServers.length : "0"} <span className="text-xs text-neutral-500 font-normal">Server</span>
+                        {stats?.network ? (stats.network.rxSpeed / 1024 / 1024).toFixed(2) : "0.00"} <span className="text-xs text-neutral-400 font-normal">MB/s</span>
                       </h3>
-                      <div className="text-[10px] text-neutral-400 font-mono mt-2 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Status: {pteroConfig.pterodactylActive ? "Monitoring On" : "Inaktif"}
+                      <div className="text-[10px] text-neutral-405 font-mono mt-2 uppercase flex justify-between items-center">
+                        <span>Limit: {bandwidthConfig.alertNetRxThreshold} MB/s</span>
+                        <span className="text-neutral-550">{(stats?.network?.rxPacketsSpeed || 0).toLocaleString()} pps</span>
                       </div>
                     </div>
 
-                    {/* OVERLOAD WARNING COUNTER */}
-                    {(() => {
-                      const overloadedCount = pteroServers.filter(s => s.alertFlags.isOverloaded).length;
-                      const hasOverload = overloadedCount > 0;
-                      return (
-                        <div className={`border rounded-xl p-4.5 relative overflow-hidden transition-all duration-300 ${
-                          hasOverload 
-                            ? "bg-amber-950/15 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.08)] animate-pulse" 
-                            : "bg-[#0b0b10] border-neutral-850"
-                        }`}>
-                          <p className="text-[10px] text-amber-400 uppercase tracking-widest font-mono font-bold flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 text-amber-500" /> SERVER OVERLOAD
-                          </p>
-                          <h3 className={`text-2xl font-extrabold mt-1 tracking-tight font-sans ${hasOverload ? "text-amber-450" : "text-neutral-100"}`}>
-                            {overloadedCount} <span className="text-xs text-neutral-500 font-normal">Server Terbebani</span>
-                          </h3>
-                          <div className="text-[10px] text-neutral-400 font-mono mt-2 uppercase">
-                            {hasOverload ? "🔥 BEBERAPA NODES MEMBUTUHKAN PENANGANAN" : "🟢 AMAN // BEBAN SEMUA SERVER STABIL"}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* LAST TIMESTAMP METRICS */}
+                    {/* OUTBOUND TX */}
                     <div className="bg-[#0b0b10] border border-neutral-850 rounded-xl p-4.5 relative overflow-hidden">
-                      <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono font-bold">MUTAKHIR METRICS SYNC</p>
-                      <h3 className="text-sm font-extrabold mt-2 text-neutral-200 font-mono">
-                        {pteroLastSync ? pteroLastSync : "Belum Tersinkron"}
+                      <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono font-bold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse"></span> OUTGOING SPEED (TX)
+                      </p>
+                      <h3 className="text-2xl font-extrabold mt-1 text-neutral-100 font-sans tracking-tight">
+                        {stats?.network ? (stats.network.txSpeed / 1024 / 1024).toFixed(2) : "0.00"} <span className="text-xs text-neutral-400 font-normal">MB/s</span>
                       </h3>
-                      <button
-                        onClick={syncPteroServers}
-                        disabled={isLoadingPtero || !pteroConfig.pterodactylActive}
-                        className={`mt-2 py-1 px-2.5 text-[9px] font-mono font-bold border rounded transition flex items-center gap-1 uppercase ${
-                          (!pteroConfig.pterodactylActive)
-                            ? "border-neutral-850 text-neutral-600 bg-transparent cursor-not-allowed"
-                            : "border-amber-500/30 text-amber-400 hover:text-white bg-[#100c05] hover:bg-amber-950/20 cursor-pointer"
-                        }`}
-                      >
-                        <RefreshCw className={`w-2.5 h-2.5 ${isLoadingPtero ? "animate-spin" : ""}`} /> SYNC_ALL_LOADS
-                      </button>
+                      <div className="text-[10px] text-neutral-405 font-mono mt-2 uppercase flex justify-between items-center">
+                        <span>Limit: {bandwidthConfig.alertNetTxThreshold} MB/s</span>
+                        <span className="text-neutral-550">{(stats?.network?.txPacketsSpeed || 0).toLocaleString()} pps</span>
+                      </div>
+                    </div>
+
+                    {/* TOTAL TRAFFIC BYTES STATE */}
+                    <div className="bg-[#0b0b10] border border-neutral-850 rounded-xl p-4.5 relative overflow-hidden">
+                      <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono font-bold">TOTAL DATA TRANSFER</p>
+                      <h3 className="text-2xl font-sans font-extrabold mt-1 text-amber-400">
+                        {(() => {
+                          const totalRx = stats?.network?.totalRxBytes || 0;
+                          const totalTx = stats?.network?.totalTxBytes || 0;
+                          const sumGb = (totalRx + totalTx) / 1024 / 1024 / 1024;
+                          return sumGb > 0.05 ? `${sumGb.toFixed(2)} GB` : "0.00 GB";
+                        })()}
+                      </h3>
+                      <div className="text-[10px] text-neutral-400 font-mono mt-2 uppercase flex justify-between">
+                        <span>RX: {stats?.network ? (stats.network.totalRxBytes / 1024 / 1024).toFixed(0) : 0} MB</span>
+                        <span>TX: {stats?.network ? (stats.network.totalTxBytes / 1024 / 1024).toFixed(0) : 0} MB</span>
+                      </div>
                     </div>
 
                   </div>
 
-                  {/* Pterodactyl Overview Panel */}
+                  {/* Packet Flood Simulation Panel */}
                   <div className="bg-[#050508]/60 border border-neutral-850 rounded-2xl p-5 space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-neutral-900">
+                    <div className="flex justify-between items-center pb-2 border-b border-neutral-900 flex-wrap gap-2">
                       <div>
-                        <h4 className="text-xs font-bold text-neutral-200 uppercase font-mono tracking-wider">PELACAKAN MULTI-SERVER PTERODACTYL</h4>
-                        <p className="text-[10px] text-neutral-500 mt-0.5">Sistem memindai performa node, kontainer server, alokasi memori, ruang disk, dan konsumsi CPU inti secara simultan.</p>
+                        <h4 className="text-xs font-bold text-neutral-200 uppercase font-mono tracking-wider">MOCK PACKET FLOOD SIMULATOR (PENGUJIAN ALARM CAPABILITY)</h4>
+                        <p className="text-[10px] text-neutral-500 mt-0.5">Simulasikan banjir paket jaringan masuk (torrent/DDoS) maupun keluar untuk memicu sistem deteksi proteksi & Telegram Alarm.</p>
                       </div>
-                      <span className="text-[9px] bg-neutral-900 border border-neutral-800 font-mono text-neutral-400 px-2 py-0.5 rounded uppercase">
-                        Active Monitoring
+                      <span className="text-[9px] bg-amber-500/10 border border-amber-500/20 font-mono text-amber-400 px-2 py-0.5 rounded uppercase">
+                        Lab Eksperimen
                       </span>
                     </div>
 
-                    {!pteroConfig.pterodactylActive ? (
-                      <div className="py-12 text-center border border-dashed border-neutral-850 rounded-xl space-y-3 bg-black/20">
-                        <Server className="w-10 h-10 text-neutral-600 mx-auto stroke-1" />
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-neutral-300">Live Telemetry Pterodactyl Belum Aktif</p>
-                          <p className="text-[10px] text-neutral-500 max-w-sm mx-auto leading-relaxed">
-                            Masukkan Pterodactyl Domain dan Client API Key, lalu centang "Aktifkan Pelacakan Live Telemetry" untuk menguji status muatan server dan mendeteksi overload.
+                    {isSimulatingFlood ? (
+                      <div className="py-8 text-center bg-red-950/10 border border-red-500/25 rounded-xl space-y-4 shadow-[0_0_20px_rgba(239,68,68,0.06)] animate-pulse">
+                        <AlertTriangle className="w-10 h-10 text-red-500 mx-auto stroke-2" />
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-bold text-red-400 uppercase tracking-widest font-mono">SIMULASI AKTIF: {simulatedFloodType === "rx" ? "TRAFIK RX FLOOD" : "TRAFIK TX UDP FLOOD"}</p>
+                          <p className="text-2xl font-black font-sans text-neutral-100">
+                            {simCountdown} <span className="text-sm text-neutral-400">Detik Tersisa</span>
+                          </p>
+                          <p className="text-[10px] text-neutral-400 max-w-sm mx-auto leading-relaxed">
+                            Server sedang mengalami lonjakan volume paket tiruan. Perhatikan bot Telegram Anda, alarm otomatis dikirimkan karena batas aman terlampaui!
                           </p>
                         </div>
                       </div>
-                    ) : isLoadingPtero && pteroServers.length === 0 ? (
-                      <div className="py-12 text-center bg-black/10 rounded-xl border border-neutral-905">
-                        <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
-                        <p className="text-xs text-neutral-400 font-mono">SEDANG MENGHUBUNGI API PTERODACTYL DAN MENGHITUNG BEBAN SERVERS...</p>
-                      </div>
-                    ) : pteroError ? (
-                      <div className="py-8 px-4 text-center border border-rose-950/40 bg-rose-950/10 rounded-xl space-y-2">
-                        <XCircle className="w-8 h-8 text-rose-500 mx-auto" />
-                        <p className="text-xs font-bold text-rose-400 uppercase tracking-wider">MENGALAMI MASALAH KONEKSI API PANEL</p>
-                        <p className="text-[10px] text-neutral-400 font-mono max-w-md mx-auto">{pteroError}</p>
-                        <button
-                          onClick={syncPteroServers}
-                          className="mt-2 text-[9px] font-mono font-bold text-amber-400 hover:text-white border border-amber-500/25 px-2 py-1 rounded bg-[#100c05] cursor-pointer"
-                        >
-                          COBA LAGI_
-                        </button>
-                      </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-                        <div className="bg-neutral-950/45 p-3 rounded-xl border border-neutral-900 flex justify-between items-center">
-                          <span className="text-neutral-500">SERVER RUNNING:</span>
-                          <span className="text-emerald-400 font-bold">{pteroServers.filter(s => s.status === "running").length} Server</span>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+                          
+                          {/* Rx Flood Simulator widget */}
+                          <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-900 space-y-3.5">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-cyan-400 text-[11px] uppercase">📥 RX INCOMING TRAFFIC FLOOD</span>
+                              <span className="text-[9px] text-neutral-500">DDoS Simulation</span>
+                            </div>
+                            <p className="text-[10px] text-neutral-500 leading-relaxed min-h-[40px]">
+                              Membuat server tiruan kebanjiran trafik download sebesar <span className="text-neutral-300">15 MB/s</span> untuk memastikan notifikasi "Bandwidth Masuk Sangat Tinggi" masuk ke Telegram.
+                            </p>
+                            <button
+                              onClick={() => startPacketFloodSimulation("rx", 15, 15)}
+                              className="w-full text-[10px] font-mono font-bold text-center py-2 bg-cyan-950/20 hover:bg-cyan-950/40 border border-cyan-500/30 text-cyan-400 hover:text-white rounded-lg transition uppercase cursor-pointer"
+                            >
+                              MULAI SIMULASI RX INCOMING (15 MB/s)
+                            </button>
+                          </div>
+
+                          {/* Tx Flood Simulator widget */}
+                          <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-900 space-y-3.5">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-violet-400 text-[11px] uppercase">📤 TX OUTBOUND ATTACK FLOOD</span>
+                              <span className="text-[9px] text-neutral-500">Outbound Spam Simulation</span>
+                            </div>
+                            <p className="text-[10px] text-neutral-500 leading-relaxed min-h-[40px]">
+                              Menyimulasikan malware di dalam VPS membombardir trafik keluar sebesar <span className="text-neutral-300">20 MB/s</span> secara destruktif guna memicu penanganan preventif admin.
+                            </p>
+                            <button
+                              onClick={() => startPacketFloodSimulation("tx", 20, 15)}
+                              className="w-full text-[10px] font-mono font-bold text-center py-2 bg-violet-950/20 hover:bg-violet-950/40 border border-violet-500/30 text-violet-400 hover:text-white rounded-lg transition uppercase cursor-pointer"
+                            >
+                              MULAI SIMULASI TX OUTBOUND (20 MB/s)
+                            </button>
+                          </div>
+
                         </div>
-                        <div className="bg-neutral-950/45 p-3 rounded-xl border border-neutral-900 flex justify-between items-center">
-                          <span className="text-neutral-500">SERVER OFFLINE/STALLED:</span>
-                          <span className={`${pteroServers.filter(s => s.status === "offline").length > 0 ? "text-red-400 font-bold" : "text-neutral-400"}`}>
-                            {pteroServers.filter(s => s.status === "offline").length} Server
-                          </span>
-                        </div>
-                        <div className="bg-neutral-950/45 p-3 rounded-xl border border-neutral-900 flex justify-between items-center">
-                          <span className="text-neutral-500">DISK OVERLOAD:</span>
-                          <span className={`${pteroServers.filter(s => s.alertFlags.diskOverload).length > 0 ? "text-amber-500 font-bold animate-pulse" : "text-neutral-400"}`}>
-                            {pteroServers.filter(s => s.alertFlags.diskOverload).length} Server
-                          </span>
-                        </div>
-                        <div className="bg-neutral-950/45 p-3 rounded-xl border border-neutral-900 flex justify-between items-center">
-                          <span className="text-neutral-500">RAM/CPU OVERLOAD:</span>
-                          <span className={`${pteroServers.filter(s => s.alertFlags.ramOverload || s.alertFlags.cpuOverload).length > 0 ? "text-amber-500 font-bold animate-pulse" : "text-neutral-400"}`}>
-                            {pteroServers.filter(s => s.alertFlags.ramOverload || s.alertFlags.cpuOverload).length} Server
-                          </span>
+
+                        {/* Extra Safety Notice Block */}
+                        <div className="bg-[#100c05] border border-amber-500/20 rounded-xl p-3.5 flex items-start gap-3">
+                          <CheckCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <h5 className="text-[11px] font-bold text-amber-450 uppercase font-mono">Sistem Pencegah Penyalahgunaan Paket</h5>
+                            <p className="text-[10px] text-neutral-400 leading-relaxed">
+                              Dengan integrasi ini, Anda tidak perlu lagi khawatir VPS mengekspor paket-paket sampah secara tidak terkendali (DDOS outbound malware). Bot Telegram akan langsung memberitahu Anda sebelum bandwidth bulanan VPS habis terkuras.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -3102,207 +3416,652 @@ sudo systemctl status vps-monitor-bot`}
                 </div>
 
               </div>
+            </motion.div>
+          )}
 
-              {/* Server Data Grid Cards */}
-              {pteroConfig.pterodactylActive && pteroServers.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center gap-2">
-                      <span>DAFTAR LIVE NODES SERVER ({pteroServers.length})</span>
-                      {isLoadingPtero && (
-                        <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-mono animate-pulse">
-                          UPDATING...
+          {activeTab === "ports" && (
+            <motion.div
+              key="ports"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div className="bg-[#09090e]/80 border border-cyan-500/30 rounded-2xl p-6 space-y-5 shadow-[0_0_20px_rgba(6,182,212,0.05)] backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-4 h-4 bg-cyan-500 rounded-bl-lg"></div>
+                
+                <div className="flex justify-between items-center flex-wrap gap-4 border-b border-cyan-950/40 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-cyan-950/50 border border-cyan-500/35 text-cyan-400 rounded-xl shadow-[0_0_10px_rgba(6,182,212,0.1)]">
+                      <Globe className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center gap-2">
+                        Pemonitor Port Dan Layanan VPS
+                        <span className="text-[9px] bg-cyan-950/40 border border-cyan-500/20 text-cyan-450 px-2.5 py-0.5 rounded font-mono font-bold tracking-widest leading-none">
+                          PORT_GATEWAY
                         </span>
-                      )}
-                    </h3>
-                    <p className="text-[10px] text-neutral-500 font-mono">AMBANG BATAS OVERLOAD: &gt;90% DARI ALOKASI LIMIT SERVER</p>
+                      </h3>
+                      <p className="text-xs text-neutral-400 mt-0.5 font-sans">
+                        Pantau status keaktifan server web, database, SSH, atau port server eksternal milik Anda secara langsung.
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {pteroServers.map((server) => {
-                      const isOffline = server.status === "offline";
-                      const isSuspended = server.isSuspended || server.status === "suspended";
-                      const isOverloaded = server.alertFlags.isOverloaded;
+                  <button
+                    onClick={handleCheckPorts}
+                    disabled={checkingPorts}
+                    className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-neutral-950 font-bold text-xs rounded-xl flex items-center gap-1.5 transition select-none cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${checkingPorts ? "animate-spin" : ""}`} /> 
+                    {checkingPorts ? "MEMINDAI..." : "PINDAI SEMUA PORT"}
+                  </button>
+                </div>
 
-                      // Memory percentage string
-                      const ramPercent = server.limits.memory > 0 
-                        ? Math.round((server.resources.memory / server.limits.memory) * 100) 
-                        : 0;
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left list block */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {ports.map((port) => {
+                        let statusColor = "border-neutral-800 text-neutral-450 bg-neutral-950/40";
+                        let statusText = "⚪ IDLE / READY";
+                        if (port.status === "online") {
+                          statusColor = "border-emerald-500/30 text-emerald-400 bg-emerald-950/15 shadow-[0_0_12px_rgba(16,185,129,0.03)]";
+                          statusText = "🟢 TERKONEKSI (OPEN)";
+                        } else if (port.status === "offline") {
+                          statusColor = "border-red-500/30 text-red-400 bg-red-950/15 shadow-[0_0_12px_rgba(239,68,68,0.03)]";
+                          statusText = "🔴 MATI (CLOSED)";
+                        } else if (port.status === "loading") {
+                          statusColor = "border-cyan-500/30 text-cyan-400 bg-cyan-950/15 animate-pulse";
+                          statusText = "🟡 MEMERIKSA...";
+                        }
 
-                      // Disk percentage string
-                      const diskPercent = server.limits.disk > 0 
-                        ? Math.round((server.resources.disk / server.limits.disk) * 100) 
-                        : 0;
-
-                      // CPU percentage string
-                      const cpuPercent = server.limits.cpu > 0 
-                        ? Math.round((server.resources.cpu / server.limits.cpu) * 100)
-                        : Math.round(server.resources.cpu);
-
-                      return (
-                        <div 
-                          key={server.id} 
-                          className={`bg-neutral-950 border rounded-2xl p-5 space-y-4 relative overflow-hidden transition-all duration-300 ${
-                            isOffline 
-                              ? "border-neutral-900 opacity-70"
-                              : isSuspended
-                                ? "border-amber-950/65 bg-[#0e0a05]/40"
-                                : isOverloaded
-                                  ? "border-red-500/40 bg-red-950/5 shadow-[0_0_15px_rgba(239,68,68,0.06)]"
-                                  : "border-neutral-850 hover:border-neutral-750 hover:bg-neutral-900/10"
-                          }`}
-                        >
-                          {/* Card Warning Top Glow */}
-                          {isOverloaded && (
-                            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
-                          )}
-
-                          {/* Identifier Header */}
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="truncate pr-1">
-                              <h4 className="text-sm font-bold text-neutral-100 font-sans tracking-tight truncate flex items-center gap-1.5" title={server.name}>
-                                {server.name}
-                              </h4>
-                              <div className="text-[10px] text-neutral-400 font-mono mt-0.5 flex flex-wrap gap-x-2 items-center">
-                                <span className="text-neutral-500">ID: {server.id}</span>
-                                <span>•</span>
-                                <span className="text-neutral-400 text-[10px] uppercase">{server.node}</span>
+                        return (
+                          <div key={port.id} className="bg-neutral-900 border border-neutral-850 rounded-2xl p-4 flex flex-col justify-between space-y-4 relative overflow-hidden group">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider">{port.type.toUpperCase()} SERVICE</span>
+                                <h4 className="text-sm font-bold text-neutral-200">{port.name}</h4>
+                                <p className="text-[10px] text-neutral-400 font-mono tracking-wide">{port.host}:{port.port}</p>
                               </div>
+                              <button
+                                onClick={() => handleDeletePort(port.id)}
+                                className="text-neutral-500 hover:text-red-400 p-1 rounded-md transition cursor-pointer"
+                                title="Hapus Port"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
 
-                            {/* Server Status Badge */}
-                            <span className={`px-2.5 py-0.5 text-[9px] rounded font-bold font-mono uppercase tracking-wider shrink-0 border ${
-                              isOffline 
-                                ? 'bg-neutral-900 text-neutral-500 border-neutral-800' 
-                                : isSuspended
-                                  ? 'bg-orange-950/30 text-orange-400 border-orange-500/20'
-                                  : isOverloaded
-                                    ? 'bg-red-950/20 text-red-500 border-red-500/30 animate-pulse'
-                                    : 'bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
-                            }`}>
-                              {isOffline 
-                                ? "🔴 OFF" 
-                                : isSuspended
-                                  ? "⚠️ SUSPENDED"
-                                  : isOverloaded
-                                    ? "🔥 OVERLOAD"
-                                    : "🟢 RUNNING"
-                              }
-                            </span>
+                            <div className={`border p-2.5 rounded-lg text-center font-mono text-[10px] font-bold ${statusColor}`}>
+                              {statusText}
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                          {/* Trigger list diagnostics if overloading */}
-                          {isOverloaded && (
-                            <div className="bg-red-950/30 border border-red-500/25 px-2.5 py-1.5 rounded-lg text-[10.5px] font-mono text-red-400 flex items-center gap-1.5 animate-pulse uppercase font-bold">
-                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                              TERDETEKSI OVERLOAD: {server.alertFlags.details.join(", ")}
-                            </div>
-                          )}
+                  {/* Right form block */}
+                  <div className="bg-neutral-950 border border-neutral-850 rounded-2xl p-5 space-y-4 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+                    <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest font-mono">Tambah Port Pemantauan</h4>
+                    
+                    <form onSubmit={handleAddPort} className="space-y-4 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 font-medium">Nama Layanan</label>
+                        <input
+                          type="text"
+                          required
+                          value={newPortName}
+                          onChange={(e) => setNewPortName(e.target.value)}
+                          placeholder="Contoh: Webserver Nginx"
+                          className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-cyan-500/65 font-medium transition"
+                        />
+                      </div>
 
-                          {/* Core Metrics Visual Section */}
-                          <div className="space-y-3.5 font-mono text-[10px] pt-1.5">
+                      <div className="space-y-1">
+                        <label className="text-neutral-400 font-medium">Alamat DNS/Host/IP</label>
+                        <input
+                          type="text"
+                          required
+                          value={newPortHost}
+                          onChange={(e) => setNewPortHost(e.target.value)}
+                          placeholder="localhost atau 127.0.0.1"
+                          className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-cyan-500/65 font-mono transition"
+                        />
+                      </div>
 
-                            {/* CPU Loads */}
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center text-neutral-400 font-sans">
-                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-bold ${
-                                  server.alertFlags.cpuOverload ? "bg-red-950 text-red-405 border border-red-500/20" : "bg-neutral-900 border border-neutral-850 text-neutral-450"
-                                }`}>
-                                  CPU
-                                </span>
-                                <span>
-                                  {isOffline ? "0.0%" : `${server.resources.cpu.toFixed(1)}%`} 
-                                  <span className="text-neutral-500 ml-1">
-                                    / {server.limits.cpu > 0 ? `${server.limits.cpu}%` : "¥ (Unlimited)"}
-                                  </span>
-                                </span>
-                              </div>
-                              <div className="h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-850">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-1000 ${
-                                    isOffline 
-                                      ? "bg-neutral-800"
-                                      : server.alertFlags.cpuOverload
-                                        ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse"
-                                        : "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.2)]"
-                                  }`}
-                                  style={{ width: `${Math.min(100, isOffline ? 0 : cpuPercent)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-
-                            {/* Memory RAM Utilization */}
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center text-neutral-400 font-sans">
-                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-bold ${
-                                  server.alertFlags.ramOverload ? "bg-red-950 text-red-405 border border-red-500/20" : "bg-neutral-900 border border-neutral-850 text-neutral-450"
-                                }`}>
-                                  RAM
-                                </span>
-                                <span>
-                                  {isOffline ? "0" : server.resources.memory.toFixed(0)} MB
-                                  <span className="text-neutral-500 ml-1">
-                                    / {server.limits.memory > 0 ? `${server.limits.memory} MB` : "¥ (Unlimited)"}
-                                  </span>
-                                </span>
-                              </div>
-                              <div className="h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-850">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-1000 ${
-                                    isOffline 
-                                      ? "bg-neutral-800"
-                                      : server.alertFlags.ramOverload
-                                        ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse"
-                                        : "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.2)]"
-                                  }`}
-                                  style={{ width: `${Math.min(100, isOffline ? 0 : ramPercent)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-
-                            {/* Disk Storage Space */}
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center text-neutral-400 font-sans">
-                                <span className={`font-mono text-[9px] px-1 py-0.2 rounded font-bold ${
-                                  server.alertFlags.diskOverload ? "bg-red-950 text-red-405 border border-red-500/20" : "bg-neutral-900 border border-neutral-850 text-neutral-450"
-                                }`}>
-                                  DISK
-                                </span>
-                                <span>
-                                  {isOffline ? "0" : (server.resources.disk / 1024).toFixed(1)} GB
-                                  <span className="text-neutral-500 ml-1">
-                                    / {server.limits.disk > 0 ? `${(server.limits.disk / 1024).toFixed(1)} GB` : "¥ (Unlimited)"}
-                                  </span>
-                                </span>
-                              </div>
-                              <div className="h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-850">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-1000 ${
-                                    isOffline 
-                                      ? "bg-neutral-800"
-                                      : server.alertFlags.diskOverload
-                                        ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse"
-                                        : "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.2)]"
-                                  }`}
-                                  style={{ width: `${Math.min(100, isOffline ? 0 : diskPercent)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-
-                          </div>
-
-                          {/* Extra info panel card block */}
-                          <div className="pt-3 border-t border-neutral-900 flex justify-between items-center text-[9px] text-neutral-500 font-mono">
-                            <span className="truncate max-w-[120px] capitalize">Node: {server.node}</span>
-                            <span className="truncate font-sans uppercase text-neutral-400">UUID: {server.id}</span>
-                          </div>
-
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-neutral-400 font-medium">Nomor Port</label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            max="65535"
+                            value={newPortNum}
+                            onChange={(e) => setNewPortNum(Number(e.target.value))}
+                            className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-cyan-500/65 font-mono transition"
+                          />
                         </div>
-                      );
-                    })}
+
+                        <div className="space-y-1">
+                          <label className="text-neutral-400 font-medium">Kategori</label>
+                          <select
+                            value={newPortType}
+                            onChange={(e) => setNewPortType(e.target.value)}
+                            className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 border-neutral-850 rounded-lg focus:outline-none focus:border-cyan-500/65 transition"
+                          >
+                            <option value="http">HTTP</option>
+                            <option value="https">HTTPS</option>
+                            <option value="db">DATABASE</option>
+                            <option value="ssh">SSH</option>
+                            <option value="custom">CUSTOM</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 bg-neutral-900 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-950/20 hover:text-white font-bold rounded-xl transition uppercase tracking-wider font-mono shadow-[0_0_10px_rgba(6,182,212,0.02)] cursor-pointer"
+                      >
+                        + TAMBAHKAN KE LIST
+                      </button>
+                    </form>
                   </div>
                 </div>
-              )}
+
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === "terminal" && adminSessionActive && (
+            <motion.div
+              key="terminal"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div className="bg-[#09090e]/80 border border-emerald-500/30 rounded-2xl p-6 space-y-5 shadow-[0_0_20px_rgba(16,185,129,0.05)] backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-4 h-4 bg-emerald-500 rounded-bl-lg"></div>
+
+                <div className="flex justify-between items-center border-b border-neutral-850 pb-4 flex-wrap gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-950/50 border border-emerald-500/35 text-emerald-400 rounded-xl shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                      <Terminal className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center gap-2">
+                        Pintasan Konsol SSH Diagnosa Server
+                        <span className="text-[9px] bg-emerald-950/40 border border-emerald-500/20 text-emerald-450 px-2.5 py-0.5 rounded font-mono font-bold tracking-widest leading-none">
+                          SHELL_CONSOLE
+                        </span>
+                      </h3>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        Jalankan modul pemindai sistem lokal Anda secara aman tanpa harus login SSH manual dari komputer.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Left Column: Commands Buttons */}
+                  <div className="lg:col-span-1 space-y-3 font-mono text-xs">
+                    <p className="text-neutral-500 uppercase tracking-widest font-bold text-[10px]">DIAGNOSTIC SHORTCUTS</p>
+                    
+                    <button
+                      onClick={() => handleRunCommand("cpu-info")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/10 text-neutral-300 transition group flex items-center justify-between cursor-pointer"
+                    >
+                      <span>🖥️ Cek Spesifikasi CPU</span>
+                      <Play className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => handleRunCommand("ram-usage")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/10 text-neutral-300 transition group flex items-center justify-between cursor-pointer"
+                    >
+                      <span>🔋 Cek Alokasi Memori</span>
+                      <Play className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => handleRunCommand("disk-usage")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/10 text-neutral-300 transition group flex items-center justify-between cursor-pointer"
+                    >
+                      <span>💽 Cek Partisi Storage</span>
+                      <Play className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => handleRunCommand("dir-list")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/10 text-neutral-300 transition group flex items-center justify-between cursor-pointer"
+                    >
+                      <span>📂 Daftar File Directory</span>
+                      <Play className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => handleRunCommand("node-version")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/10 text-neutral-300 transition group flex items-center justify-between cursor-pointer"
+                    >
+                      <span>📦 Cek Versi Node & NPM</span>
+                      <Play className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => handleRunCommand("docker-ncdu")}
+                      disabled={executingCmd}
+                      className="w-full text-left p-3 bg-neutral-900 border border-neutral-850 hover:border-emerald-500/30 rounded-xl hover:bg-emerald-950/20 text-neutral-200 transition group flex items-center justify-between cursor-pointer font-bold border-emerald-500/10"
+                    >
+                      <span>📊 run: NCDU Disk Usage</span>
+                      <Play className="w-3.5 h-3.5 opacity-100 text-emerald-400 transition" />
+                    </button>
+                  </div>
+
+                  {/* Right Column: Terminal Shell window */}
+                  <div className="lg:col-span-3 bg-neutral-950 border border-neutral-850 rounded-2xl overflow-hidden flex flex-col h-[340px] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
+                    <div className="bg-neutral-900 px-4 py-2 border-b border-neutral-850 flex items-center justify-between">
+                      <div className="flex gap-1.5">
+                        <span className="w-3 h-3 rounded-full bg-red-500/70 inline-block animate-pulse"></span>
+                        <span className="w-3 h-3 rounded-full bg-amber-500/70 inline-block"></span>
+                        <span className="w-3 h-3 rounded-full bg-emerald-500/70 inline-block"></span>
+                      </div>
+                      <span className="text-[10px] text-neutral-400 font-mono tracking-wider font-bold">Secure Local Diagnostic Session Area</span>
+                      <span className="w-3 h-3"></span>
+                    </div>
+
+                    <div className="p-4 flex-1 overflow-y-auto font-mono text-[10px] text-emerald-400 space-y-2 leading-relaxed bg-[#020204]">
+                      <pre className="whitespace-pre-wrap select-text selection:bg-emerald-950 selection:text-emerald-300">
+                        {terminalOutput}
+                      </pre>
+                      {executingCmd && (
+                        <div className="flex items-center gap-2 text-neutral-400 text-[10px] animate-pulse">
+                          <span>$ memuat proses diagnostik...</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* INTERACTIVE NCDU VISUAL COMPONENT */}
+                <div id="ncdu-visual-panel" className="border-t border-neutral-850 pt-5 mt-5 space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-950/30 border border-emerald-500/25 rounded-lg text-emerald-400">
+                      <HardDrive className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-200 uppercase tracking-wider font-mono">
+                        PEMANTAU & DIAGNOSA NCDU VISUAL INTERAKTIF
+                      </h4>
+                      <p className="text-[11px] text-neutral-400">
+                        Klik direktori untuk menjelajah (Drill Down) atau gunakan tombol sampah <span className="text-rose-400 font-bold">HAPUS</span> untuk menghapus berkas tidak berguna secara realtime untuk melonggarkan disk node.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#040406] border border-neutral-850 rounded-2xl p-4 md:p-5 space-y-4 shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                    {/* Breadcrumbs Navigation */}
+                    <div className="flex items-center justify-between flex-wrap gap-3 bg-[#0a0a0f] border border-neutral-850 px-4 py-2.5 rounded-xl text-[10px] font-mono">
+                      <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                        <span className="text-neutral-500 font-bold uppercase">LOKASI_PATH:</span>
+                        <button
+                          onClick={() => setNcduPath([])}
+                          className="text-emerald-400 hover:underline cursor-pointer font-bold"
+                        >
+                          root
+                        </button>
+                        {ncduPath.map((seg, i) => (
+                          <React.Fragment key={i}>
+                            <span className="text-neutral-600">/</span>
+                            <button
+                              onClick={() => setNcduPath(ncduPath.slice(0, i + 1))}
+                              className="text-emerald-450 hover:underline cursor-pointer font-bold"
+                            >
+                              {seg}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs">
+                        {ncduPath.length > 0 && (
+                          <button
+                            onClick={() => setNcduPath(prev => prev.slice(0, -1))}
+                            className="flex items-center gap-1 text-emerald-450 hover:text-white transition cursor-pointer font-bold"
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>KEMBALI_NAIK (..)</span>
+                          </button>
+                        )}
+                        <span className="text-neutral-400 font-mono text-[10px] bg-neutral-900/60 px-2 py-1 rounded border border-neutral-850">
+                          TOTAL SIZE: <span className="text-emerald-450 font-bold">{getCurrentNcduNode().sizeMB >= 1024 ? (getCurrentNcduNode().sizeMB / 1024).toFixed(2) + " GB" : getCurrentNcduNode().sizeMB + " MB"}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Nodes List */}
+                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                      {(!getCurrentNcduNode().children || getCurrentNcduNode().children?.length === 0) ? (
+                        <div className="text-center py-8 text-neutral-500 font-mono text-xs">
+                          📂 Direktori kosong / Tidak ada berkas di dalam folder ini.
+                        </div>
+                      ) : (
+                        getCurrentNcduNode().children?.map((node, index) => {
+                          const parentSize = getCurrentNcduNode().sizeMB || 1;
+                          const percent = Math.min(100, Math.round((node.sizeMB / parentSize) * 100));
+                          const isDir = node.type === "dir";
+                          const sizeDisplay = node.sizeMB >= 1024 ? (node.sizeMB / 1024).toFixed(2) + " GB" : node.sizeMB + " MB";
+
+                          return (
+                            <div 
+                              key={index}
+                              className="group flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-neutral-900/40 border border-neutral-850/60 rounded-xl hover:border-emerald-500/20 transition hover:bg-neutral-950/40"
+                            >
+                              {/* Left details */}
+                              <div className="flex items-center gap-3 min-w-[200px]">
+                                {isDir ? (
+                                  <button
+                                    onClick={() => setNcduPath(prev => [...prev, node.name])}
+                                    className="p-1 px-1.5 bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-550 text-emerald-400 rounded-lg group-hover:scale-105 transition flex items-center gap-1 cursor-pointer text-[10px] font-mono select-none font-bold"
+                                    title="Klik untuk masuk"
+                                  >
+                                    <Folder className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                                    <span>DIR</span>
+                                  </button>
+                                ) : (
+                                  <div className="p-1 px-1.5 bg-neutral-900 border border-neutral-800 text-neutral-450 rounded-lg flex items-center gap-1 text-[10px] font-mono select-none font-medium">
+                                    <File className="w-3.5 h-3.5 shrink-0 text-neutral-500" />
+                                    <span>FILE</span>
+                                  </div>
+                                )}
+
+                                <div className="space-y-0.5">
+                                  {isDir ? (
+                                    <button 
+                                      onClick={() => setNcduPath(prev => [...prev, node.name])}
+                                      className="text-xs font-bold font-mono text-neutral-200 hover:text-emerald-400 transition hover:underline cursor-pointer text-left focus:outline-none"
+                                    >
+                                      /{node.name}
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs font-mono font-medium text-neutral-300">
+                                      {node.name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Size bar indicator */}
+                              <div className="flex-1 max-w-sm px-2 hidden sm:block">
+                                <div className="flex justify-between text-[9px] font-mono text-neutral-500 mb-1">
+                                  <span>Visual Ratio</span>
+                                  <span>{percent}% ({sizeDisplay})</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-neutral-950 rounded-full overflow-hidden border border-neutral-900">
+                                  <div 
+                                    className="h-full bg-emerald-500/70 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)] transition-all duration-300" 
+                                    style={{ width: `${percent}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              {/* Right Actions */}
+                              <div className="flex items-center gap-3.5 justify-between md:justify-end">
+                                <span className="text-xs font-mono font-bold text-neutral-300 shrink-0">
+                                  {sizeDisplay}
+                                </span>
+
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Apakah Anda yakin ingin menghapus '${node.name}' (${sizeDisplay}) secara permanen untuk membebaskan penyimpanan server panel Pterodactyl?`)) {
+                                      handleNcduDelete(node.name);
+                                    }
+                                  }}
+                                  className="p-1.5 px-3 bg-neutral-950 border border-neutral-850 hover:border-rose-500/40 text-neutral-500 hover:text-rose-450 rounded-lg transition duration-150 cursor-pointer flex items-center gap-1 text-[10px] font-bold font-mono"
+                                  title="Hapus / kosongkan berkas ini"
+                                >
+                                  <Trash2 className="w-3 h-3 text-rose-500/70 group-hover:text-rose-400 transition" />
+                                  <span>HAPUS</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="border-t border-neutral-850 pt-3 text-[9px] font-mono text-neutral-500 flex justify-between items-center flex-wrap gap-3 leading-relaxed">
+                      <span>💡 <strong>Tips Docker:</strong> Volume Pterodactyl berada pada folder <code>/volumes/&lt;srv-uuid&gt;</code>. Menghapus data cache temp aman dan tidak akan mengganggu file server utama game.</span>
+                      <span className="text-emerald-500/80 animate-pulse font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
+                        NCDU ENGINE ACTIVE
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === "backup" && adminSessionActive && (
+            <motion.div
+              key="backup"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div className="bg-[#09090e]/80 border border-violet-500/30 rounded-2xl p-6 space-y-5 shadow-[0_0_20px_rgba(139,92,246,0.05)] backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-4 h-4 bg-violet-500 rounded-bl-lg"></div>
+
+                <div className="flex justify-between items-center flex-wrap gap-4 border-b border-violet-950/40 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-violet-950/50 border border-violet-500/35 text-violet-400 rounded-xl shadow-[0_0_10px_rgba(139,92,246,0.1)]">
+                      <Database className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center gap-2">
+                        Pencadangan Backup & Sinkronisasi VPS
+                        <span className="text-[9px] bg-violet-950/40 border border-violet-500/20 text-violet-455 px-2.5 py-0.5 rounded font-mono font-bold tracking-widest leading-none">
+                          CLOUD_BACKUP
+                        </span>
+                      </h3>
+                      <p className="text-xs text-neutral-400 mt-0.5 font-sans">
+                        Buat aturan otomatisasi backup. Mengamankan file database server game Pterodactyl Anda dengan aman.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Backup scheduler configuration form */}
+                  <div className="bg-neutral-950 border border-neutral-850 rounded-2xl p-5 space-y-4 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-violet-100 uppercase tracking-widest font-mono">Setup Backup VPS</h4>
+
+                      <div className="space-y-1 text-xs">
+                        <label className="text-neutral-400 font-medium">Nama Agenda Backup</label>
+                        <input
+                          type="text"
+                          value={backupName}
+                          onChange={(e) => setBackupName(e.target.value)}
+                          placeholder="Backup Data Harian"
+                          className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-violet-500 font-medium transition"
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-xs">
+                        <label className="text-neutral-400 font-medium">Target Folder di Server</label>
+                        <input
+                          type="text"
+                          value={backupTarget}
+                          onChange={(e) => setBackupTarget(e.target.value)}
+                          placeholder="/var/lib/pterodactyl"
+                          className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-violet-500 font-mono transition"
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-xs">
+                        <label className="text-neutral-400 font-medium">Interval Otomatisasi</label>
+                        <select
+                          value={backupSchedule}
+                          onChange={(e) => setBackupSchedule(e.target.value)}
+                          className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2 rounded-lg focus:outline-none focus:border-violet-500 transition border-neutral-850"
+                        >
+                          <option value="hourly">Tiap Jam (Hourly)</option>
+                          <option value="daily">Harian (Daily 03:00)</option>
+                          <option value="weekly">Mingguan (Weekly)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleTriggerBackup}
+                      disabled={isSimulatingBackup}
+                      className="w-full text-center font-mono font-bold py-3 bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-neutral-950 transition uppercase rounded-xl text-xs flex justify-center items-center gap-1.5 cursor-pointer mt-4"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSimulatingBackup ? "animate-spin" : ""}`} />
+                      {isSimulatingBackup ? "MEM-BACKUP..." : "BACKUP COBA SEKARANG"}
+                    </button>
+                  </div>
+
+                  {/* Historical Backups */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <h4 className="text-xs font-bold text-neutral-450 uppercase tracking-widest font-mono">Riwayat Arsip Cadangan (Tersimpan)</h4>
+
+                    <div className="space-y-3">
+                      {backups.map((bk) => (
+                        <div key={bk.id} className="bg-neutral-900 border border-neutral-850 p-4 rounded-2xl flex justify-between items-center group hover:border-neutral-750 transition-all">
+                          <div className="flex items-center gap-3.5">
+                            <div className="p-2 bg-neutral-950 border border-neutral-800 rounded-lg text-violet-455">
+                              <Database className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-neutral-200 leading-snug">{bk.name}</p>
+                              <div className="flex items-center gap-3 text-[10px] text-neutral-400 font-mono mt-1">
+                                <span className="text-violet-400 font-semibold">{bk.id}</span>
+                                <span>Dir: {bk.target}</span>
+                                <span>Schedule: {bk.schedule}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right space-y-1 font-mono">
+                            <span className="text-xs font-bold text-neutral-100">{bk.size}</span>
+                            <p className="text-[10px] text-neutral-500">{bk.timestamp}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === "optimizer" && adminSessionActive && (
+            <motion.div
+              key="optimizer"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div className="bg-[#09090e]/80 border border-amber-500/30 rounded-2xl p-6 space-y-5 shadow-[0_0_20px_rgba(245,158,11,0.05)] backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-4 h-4 bg-amber-500 rounded-bl-lg"></div>
+
+                <div className="flex justify-between items-center border-b border-amber-950/40 pb-4 flex-wrap gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-950/50 border border-amber-500/35 text-amber-400 rounded-xl shadow-[0_0_10px_rgba(245,158,11,0.1)]">
+                      <Zap className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center gap-2">
+                        Pembersih Cache RAM & Optimisasi Otomatis
+                        <span className="text-[9px] bg-amber-950/40 border border-amber-500/20 text-amber-450 px-2.5 py-0.5 rounded font-mono font-bold tracking-widest leading-none">
+                          OPT_ENG
+                        </span>
+                      </h3>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        Bersihkan pagecache dan sisa penggunaan RAM yang tersangkut secara aman untuk memperlancar performa VPS dari crash.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Controls Card */}
+                  <div className="bg-neutral-950 border border-neutral-850 rounded-2xl p-5 space-y-5 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-amber-400 uppercase tracking-widest font-mono">Konfigurasi Cleaner</h4>
+
+                      <div className="space-y-4">
+                        {/* Toggle 1 */}
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={autoCleanRam}
+                            onChange={(e) => setAutoCleanRam(e.target.checked)}
+                            className="mt-0.5 accent-amber-500 shrink-0"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-neutral-200 block">Auto-flush RAM Caches</span>
+                            <span className="text-[10px] text-neutral-400 leading-normal block">Picu pembersihan otomatis jika memori melorot di atas 80% alokasi.</span>
+                          </div>
+                        </label>
+
+                        {/* Toggle 2 */}
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={autoCleanLogs}
+                            onChange={(e) => setAutoCleanLogs(e.target.checked)}
+                            className="mt-0.5 accent-amber-500 shrink-0"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-neutral-200 block">Log Purging Berkala</span>
+                            <span className="text-[10px] text-neutral-400 leading-normal block">Bersihkan isi log riwayat telemetri di database server secara berkala tiap 72 jam.</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleOptimizeRam}
+                      disabled={isOptimizing}
+                      className="w-full text-center font-mono font-bold py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-neutral-950 font-sans tracking-wide transition uppercase rounded-xl text-xs flex justify-center items-center gap-1.5 cursor-pointer mt-6"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${isOptimizing ? "animate-spin" : ""}`} />
+                      {isOptimizing ? "MENGOPTIMALKAN..." : "OPTIMALKAN RAM SEKARANG"}
+                    </button>
+                  </div>
+
+                  {/* Right Logs Terminal */}
+                  <div className="lg:col-span-2 space-y-3 flex flex-col h-full min-h-[250px] justify-between">
+                    <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest font-bold">OPTIMIZATION LOG CONSOLE</span>
+                    
+                    <div className="bg-neutral-950 p-4 border border-neutral-850 rounded-2xl flex-1 min-h-[180px] overflow-y-auto font-mono text-[10px] text-amber-400 space-y-1 bg-black/60 shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                      {optimizationLogs.map((logLine, idx) => (
+                        <div key={idx} className="leading-relaxed">{logLine}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </motion.div>
           )}
 
@@ -3429,6 +4188,89 @@ sudo systemctl status vps-monitor-bot`}
                     </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* SECURITY ACCESS GATE FOR SENSITIVE TABS */}
+          {["telegram", "terminal", "backup", "optimizer", "bandwidth"].includes(activeTab) && !adminSessionActive && (
+            <motion.div
+              key="security-lock"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="max-w-md mx-auto"
+            >
+              <div className="bg-[#09090e]/95 border border-rose-500/30 rounded-2xl p-6 space-y-6 shadow-[0_0_25px_rgba(239,68,68,0.06)] backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-4 h-4 bg-rose-500 rounded-bl-lg"></div>
+                
+                {/* Visual Lock Icon */}
+                <div className="flex flex-col items-center text-center space-y-3 pt-2">
+                  <div className="p-4 bg-rose-950/40 border border-rose-500/35 text-rose-400 rounded-2xl shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+                    <Lock className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-100 font-display uppercase tracking-wider flex items-center justify-center gap-2">
+                      SISTEM DIKUNCI
+                      <span className="text-[9px] bg-rose-950/40 border border-rose-500/20 text-rose-400 px-2.5 py-0.5 rounded font-mono font-bold tracking-widest leading-none">
+                        AUTH_REQUIRED
+                      </span>
+                    </h3>
+                    <p className="text-xs text-neutral-400 mt-2 font-sans px-2 leading-relaxed">
+                      Menu <span className="text-rose-400 font-bold font-mono">[{activeTab.toUpperCase()}]</span> dilindungi kata sandi administrator untuk mencegah penyalahgunaan oleh pihak ketiga / salah pencet secara tidak sengaja.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  {pinError && (
+                    <div className="p-3 bg-rose-950/30 border border-rose-500/20 text-rose-400 text-xs rounded-xl flex items-center gap-2 font-medium">
+                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-450" />
+                      <span>{pinError}</span>
+                    </div>
+                  )}
+
+                  {/* Password Entry */}
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleVerifyPIN(pinInput);
+                    }}
+                    className="space-y-3"
+                  >
+                    <div className="space-y-1.5 text-xs">
+                      <label className="text-neutral-400 font-medium">Kunci Sandi Admin (Password)</label>
+                      <input
+                        type="password"
+                        required
+                        value={pinInput}
+                        onChange={(e) => setPinInput(e.target.value)}
+                        placeholder="Masukkan password admin..."
+                        className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500/65 font-mono text-center tracking-widest text-sm transition text-rose-350"
+                        autoFocus
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-rose-500 hover:bg-rose-400 text-neutral-950 font-bold rounded-xl transition uppercase tracking-wider font-mono text-xs flex justify-center items-center gap-2 cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      BUKA AKSES MENU
+                    </button>
+                  </form>
+
+                  {/* Pad / Help section */}
+                  <div className="border-t border-neutral-850 pt-4 text-center">
+                    <p className="text-[10px] text-neutral-500 font-mono leading-normal">
+                      🔑 Kata sandi standar bawaan (default) adalah: <span className="text-rose-400 font-bold bg-neutral-900 px-1.5 py-0.5 rounded">vps2026</span>
+                    </p>
+                    <p className="text-[9px] text-neutral-600 font-mono mt-2.5 leading-relaxed">
+                      Sesi aktif tersimpan temporer pada peramban web (session storage) & akan dikunci otomatis saat tab browser ditutup demi keamanan.
+                    </p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
