@@ -1086,7 +1086,8 @@ export default function App() {
   ]);
 
   // Security Lock & PIN State
-  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem("vps_monitor_admin_password") || "vps2026");
+  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem("vps_monitor_admin_password") || "");
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(() => !localStorage.getItem("vps_monitor_admin_password"));
   const [adminSessionActive, setAdminSessionActive] = useState(() => sessionStorage.getItem("vps_monitor_admin_session") === "active");
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
@@ -1095,6 +1096,20 @@ export default function App() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
 
   const handleVerifyPIN = (pinToCheck: string) => {
+    if (needsPasswordSetup) {
+      if (!pinToCheck || pinToCheck.length < 6) {
+        setPinError("Kata sandi minimal 6 karakter!");
+        return;
+      }
+      setAdminPassword(pinToCheck);
+      localStorage.setItem("vps_monitor_admin_password", pinToCheck);
+      setNeedsPasswordSetup(false);
+      setAdminSessionActive(true);
+      sessionStorage.setItem("vps_monitor_admin_session", "active");
+      setPinInput("");
+      setPinError("");
+      return;
+    }
     if (pinToCheck === adminPassword) {
       setAdminSessionActive(true);
       sessionStorage.setItem("vps_monitor_admin_session", "active");
@@ -1847,7 +1862,7 @@ async function syncTelemetryToWeb() {
 
     const statsPayload = {
       nodeId: CONFIG.nodeId,
-      secret: "pterodactyl-pass-1234",
+      secret: CONFIG.nodeId + "-telemetry",
       stats: {
         cpu,
         ram: {
@@ -4246,7 +4261,7 @@ async function syncTelemetryToWeb() {
                         required
                         value={pinInput}
                         onChange={(e) => setPinInput(e.target.value)}
-                        placeholder="Masukkan password admin..."
+                        placeholder={needsPasswordSetup ? "Buat password baru (min 6 karakter)..." : "Masukkan password admin..."}
                         className="w-full bg-neutral-900 border border-neutral-800 text-neutral-200 px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500/65 font-mono text-center tracking-widest text-sm transition text-rose-350"
                         autoFocus
                       />
@@ -4257,14 +4272,17 @@ async function syncTelemetryToWeb() {
                       className="w-full py-2.5 bg-rose-500 hover:bg-rose-400 text-neutral-950 font-bold rounded-xl transition uppercase tracking-wider font-mono text-xs flex justify-center items-center gap-2 cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.2)]"
                     >
                       <Unlock className="w-3.5 h-3.5" />
-                      BUKA AKSES MENU
+                      {needsPasswordSetup ? "BUAT PASSWORD & MASUK" : "BUKA AKSES MENU"}
                     </button>
                   </form>
 
                   {/* Pad / Help section */}
                   <div className="border-t border-neutral-850 pt-4 text-center">
                     <p className="text-[10px] text-neutral-500 font-mono leading-normal">
-                      🔑 Kata sandi standar bawaan (default) adalah: <span className="text-rose-400 font-bold bg-neutral-900 px-1.5 py-0.5 rounded">vps2026</span>
+                      {needsPasswordSetup
+                        ? <>🔐 Belum ada kata sandi. Silakan buat kata sandi admin baru (min. 6 karakter).&nbsp;</>
+                        : <>🔑 Masukkan kata sandi admin yang telah Anda konfigurasi.</>
+                      }
                     </p>
                     <p className="text-[9px] text-neutral-600 font-mono mt-2.5 leading-relaxed">
                       Sesi aktif tersimpan temporer pada peramban web (session storage) & akan dikunci otomatis saat tab browser ditutup demi keamanan.

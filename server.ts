@@ -8,12 +8,63 @@ import net from "net";
 import { exec } from "child_process";
 import { createServer as createViteServer } from "vite";
 import TelegramBot from "node-telegram-bot-api";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import cors from "cors";
 
 const app = express();
 const PORT = 3000;
 const CONFIG_FILE = path.join(process.cwd(), "config.json");
 
+// Security headers
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS — restrict to same-origin in production
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : undefined;
+app.use(
+  cors(
+    ALLOWED_ORIGINS
+      ? { origin: ALLOWED_ORIGINS, credentials: true }
+      : undefined
+  )
+);
+
+// Global rate limiter
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+// Stricter limiter for sensitive mutation endpoints
+const sensitiveRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(express.json());
+
+// Simple token-based auth middleware.
+// Set VPS_MONITOR_API_TOKEN env var to require Bearer token on mutating endpoints.
+const API_TOKEN = process.env.VPS_MONITOR_API_TOKEN || "";
+
+function requireAuth(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (!API_TOKEN) return next(); // auth disabled when no token configured
+  const header = req.headers.authorization || "";
+  if (header === `Bearer ${API_TOKEN}`) return next();
+  return res.status(401).json({ success: false, error: "Unauthorized" });
+}
 
 // Load / Save Config
 interface BotConfig {
@@ -713,19 +764,23 @@ app.get("/api/system-stats", async (req, res) => {
   }
 });
 
-// API: get bot settings
-app.get("/api/telegram-config", (req, res) => {
+// API: get bot settings (token is masked)
+app.get("/api/telegram-config", requireAuth, (req, res) => {
+  const maskedToken = botConfig.token
+    ? botConfig.token.slice(0, 6) + "…" + botConfig.token.slice(-4)
+    : "";
   res.json({
     success: true,
     data: {
       ...botConfig,
+      token: maskedToken,
       status: currentBotStatus,
     },
   });
 });
 
 // API: save bot settings
-app.post("/api/telegram-config", (req, res) => {
+app.post("/api/telegram-config", sensitiveRateLimit, requireAuth, (req, res) => {
   try {
     const { token, chatId, alertCpuThreshold, alertRamThreshold, alertDiskThreshold, alertIntervalMinutes, isActive } = req.body;
     
@@ -756,7 +811,7 @@ app.post("/api/telegram-config", (req, res) => {
 });
 
 // API: Send Test Alert
-app.post("/api/send-test-alert", async (req, res) => {
+app.post("/api/send-test-alert", sensitiveRateLimit, requireAuth, async (req, res) => {
   try {
     const { token, chatId } = req.body;
     const testToken = token || botConfig.token;
@@ -786,7 +841,7 @@ app.post("/api/send-test-alert", async (req, res) => {
 });
 
 // API: Force restart Telegram Bot polling
-app.post("/api/restart-bot", (req, res) => {
+app.post("/api/restart-bot", sensitiveRateLimit, requireAuth, (req, res) => {
   try {
     initializeTelegramBot();
     logEvent("system", "info", "Bot Direstart", "Melakukan reboot koneksi polling Telegram Bot secara manual.");
@@ -809,7 +864,7 @@ app.get("/api/alert-logs", (req, res) => {
 });
 
 // API: Clear alert logs historical data
-app.post("/api/clear-logs", (req, res) => {
+app.post("/api/clear-logs", requireAuth, (req, res) => {
   try {
     alertLogs = [];
     writeLogs();
@@ -824,18 +879,54 @@ app.post("/api/clear-logs", (req, res) => {
   }
 });
 
-// API: REAL-TIME PORT CHECKER
-app.post("/api/check-ports", async (req, res) => {
+// Deny internal/private IP ranges to prevent SSRF
+function isPrivateHost(host: string): boolean {
+  if (!host) return true;
+  // Block obvious private/loopback patterns
+  if (
+    host === "localhost" ||
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.") ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.startsWith("169.254.") ||
+    host.startsWith("fc00:") ||
+    host.startsWith("fd") ||
+    host.startsWith("fe80:")
+  ) {
+    return true;
+  }
+  // Block 172.16.0.0/12
+  if (host.startsWith("172.")) {
+    const second = parseInt(host.split(".")[1], 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
+}
+
+// API: REAL-TIME PORT CHECKER (with SSRF protection)
+app.post("/api/check-ports", requireAuth, async (req, res) => {
   try {
     const { ports: targetPorts } = req.body;
-    if (!targetPorts || !Array.isArray(targetPorts)) {
-      return res.status(400).json({ success: false, error: "Daftar port tidak valid." });
+    if (!targetPorts || !Array.isArray(targetPorts) || targetPorts.length > 20) {
+      return res.status(400).json({ success: false, error: "Daftar port tidak valid (maks 20)." });
     }
 
     const results = await Promise.all(targetPorts.map((p: any) => {
+      const host = String(p.host || "").trim();
+      const port = Number(p.port);
+
+      if (isPrivateHost(host)) {
+        return { id: p.id, status: "blocked", reason: "Private/internal addresses are not allowed" };
+      }
+      if (!port || port < 1 || port > 65535) {
+        return { id: p.id, status: "blocked", reason: "Invalid port" };
+      }
+
       return new Promise((resolve) => {
         const socket = new net.Socket();
-        socket.setTimeout(2000); // 2 seconds timeout
+        socket.setTimeout(2000);
 
         socket.on("connect", () => {
           socket.destroy();
@@ -852,7 +943,7 @@ app.post("/api/check-ports", async (req, res) => {
           resolve({ id: p.id, status: "offline" });
         });
 
-        socket.connect(p.port, p.host);
+        socket.connect(port, host);
       });
     }));
 
@@ -863,7 +954,7 @@ app.post("/api/check-ports", async (req, res) => {
 });
 
 // API: SAFE TERMINAL EXECUTION (Pre-configured standard Linux diagnostic tools)
-app.post("/api/run-command", (req, res) => {
+app.post("/api/run-command", sensitiveRateLimit, requireAuth, (req, res) => {
   try {
     const { cmdId } = req.body;
     
@@ -894,7 +985,7 @@ app.post("/api/run-command", (req, res) => {
 });
 
 // API: DUMMY BACKUP SCHEDULER & DISPATCHER WITH TELEGRAM INTEGRATION
-app.post("/api/trigger-backup", async (req, res) => {
+app.post("/api/trigger-backup", sensitiveRateLimit, requireAuth, async (req, res) => {
   try {
     const { name, target } = req.body;
     const backupId = "BK-" + Math.floor(Math.random() * 90000 + 10000);
@@ -939,7 +1030,7 @@ app.post("/api/trigger-backup", async (req, res) => {
 });
 
 // API: RAM MEMORY OPTIMIZER & FLUSH ENGINE
-app.post("/api/optimize-ram", (req, res) => {
+app.post("/api/optimize-ram", sensitiveRateLimit, requireAuth, (req, res) => {
   try {
     // If running node with GC exposed, clear memory
     if (global && typeof (global as any).gc === "function") {
@@ -976,7 +1067,7 @@ app.get("/api/bandwidth-config", (req, res) => {
 });
 
 // API: Save Bandwidth configuration
-app.post("/api/bandwidth-config", (req, res) => {
+app.post("/api/bandwidth-config", requireAuth, (req, res) => {
   try {
     const { alertNetRxThreshold, alertNetTxThreshold } = req.body;
     
@@ -1001,7 +1092,7 @@ app.post("/api/bandwidth-config", (req, res) => {
 });
 
 // API: Trigger a temporary simulation of packet flood to test Telegram alerts
-app.post("/api/bandwidth-test-flood", (req, res) => {
+app.post("/api/bandwidth-test-flood", sensitiveRateLimit, requireAuth, (req, res) => {
   try {
     const { type, speedMb, durationSec } = req.body;
     const testSpeed = Number(speedMb) || 15; // default 15 MB/s to exceed threshold
@@ -1035,7 +1126,7 @@ app.post("/api/bandwidth-test-flood", (req, res) => {
 });
 
 // Legacy Pterodactyl Diagnose (Disabled)
-app.post("/api/pterodactyl-diagnose-disabled", async (req, res) => {
+app.post("/api/pterodactyl-diagnose-disabled", sensitiveRateLimit, requireAuth, async (req, res) => {
   try {
     const { domain, apiKey } = req.body;
     
@@ -1117,7 +1208,6 @@ app.post("/api/pterodactyl-diagnose-disabled", async (req, res) => {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9"
           },
-          rejectUnauthorized: false,
           timeout: 5000
         };
 
@@ -1184,7 +1274,6 @@ app.post("/api/pterodactyl-diagnose-disabled", async (req, res) => {
               "Accept": "application/json",
               "Authorization": `Bearer ${apiKey}`
             },
-            rejectUnauthorized: false,
             timeout: 5000
           };
 
@@ -1288,7 +1377,7 @@ app.get("/api/pterodactyl-servers", async (req, res) => {
 });
 
 // API: Remote node telemetry reporting
-app.post("/api/remote-stats", (req, res) => {
+app.post("/api/remote-stats", requireAuth, (req, res) => {
   try {
     const { nodeId, secret, stats } = req.body;
     if (!nodeId) {
@@ -1297,7 +1386,7 @@ app.post("/api/remote-stats", (req, res) => {
 
     remoteServers.set(nodeId, {
       nodeId,
-      secret: secret || "default-secret",
+      secret: secret || "",
       stats: stats || { cpu: 0, ram: { used: 0, total: 1, percent: 0 }, disk: { used: 0, total: 1, percent: 0 }, uptime: 0, os: "linux" },
       lastSeen: Date.now(),
     });
