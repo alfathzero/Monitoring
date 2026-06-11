@@ -8,6 +8,9 @@ import net from "net";
 import { exec } from "child_process";
 import { createServer as createViteServer } from "vite";
 import TelegramBot from "node-telegram-bot-api";
+import { cpuAverage, getCPUUsage, getDiskUsage, getRamInfo } from "./src/server/systemStats";
+import { drawProgressBar, formatUptime } from "./src/server/formatters";
+import { checkThresholdsAndBuildAlerts, AlertTimestamps } from "./src/server/alertChecker";
 
 const app = express();
 const PORT = 3000;
@@ -74,75 +77,12 @@ interface RemoteTelemetry {
 
 const remoteServers = new Map<string, RemoteTelemetry>();
 
-// Helper for local CPU calculation
-function cpuAverage() {
-  const cpus = os.cpus();
-  if (!cpus || cpus.length === 0) return { idle: 0, total: 100 };
-  let idleMs = 0;
-  let totalMs = 0;
-  cpus.forEach((core) => {
-    for (const type in core.times) {
-      totalMs += (core.times as any)[type];
-    }
-    idleMs += core.times.idle;
-  });
-  return { idle: idleMs / cpus.length, total: totalMs / cpus.length };
-}
-
-function getCPUUsage(): Promise<number> {
-  return new Promise((resolve) => {
-    const startMeasure = cpuAverage();
-    setTimeout(() => {
-      const endMeasure = cpuAverage();
-      const idleDifference = endMeasure.idle - startMeasure.idle;
-      const totalDifference = endMeasure.total - startMeasure.total;
-      if (totalDifference === 0) return resolve(0);
-      const percentageCPU = 100 - Math.round((100 * idleDifference) / totalDifference);
-      resolve(Math.max(0, Math.min(100, percentageCPU)));
-    }, 150);
-  });
-}
-
-// Helper to get Disk usage
-function getDiskUsage(): Promise<{ total: number; free: number; used: number; usagePercent: number }> {
-  return new Promise((resolve) => {
-    exec("df -k /", (err, stdout) => {
-      if (err || !stdout) {
-        // Fallback for non-linux or containers without df
-        return resolve({ total: 50, free: 30, used: 20, usagePercent: 40 });
-      }
-      try {
-        const lines = stdout.trim().split("\n");
-        if (lines.length > 1) {
-          const parts = lines[1].replace(/\s+/g, " ").split(" ");
-          const totalKb = parseInt(parts[1], 10);
-          const usedKb = parseInt(parts[2], 10);
-          const freeKb = parseInt(parts[3], 10);
-          const usagePercent = parseInt(parts[4].replace("%", ""), 10);
-
-          const totalGb = +(totalKb / 1024 / 1024).toFixed(1);
-          const usedGb = +(usedKb / 1024 / 1024).toFixed(1);
-          const freeGb = +(freeKb / 1024 / 1024).toFixed(1);
-
-          return resolve({
-            total: isNaN(totalGb) ? 50 : totalGb,
-            free: isNaN(freeGb) ? 30 : freeGb,
-            used: isNaN(usedGb) ? 20 : usedGb,
-            usagePercent: isNaN(usagePercent) ? 40 : usagePercent,
-          });
-        }
-      } catch (e) {
-        // Fallback
-      }
-      resolve({ total: 100, free: 60, used: 40, usagePercent: 40 });
-    });
-  });
-}
+// cpuAverage, getCPUUsage, getDiskUsage, getRamInfo imported from src/server/systemStats
 
 // Telegram Bot Global Instance
 let botInstance: TelegramBot | null = null;
 let alertIntervalTimer: NodeJS.Timeout | null = null;
-let lastAlertTimes = { cpu: 0, ram: 0, disk: 0, netRx: 0, netTx: 0 };
+let lastAlertTimes: AlertTimestamps = { cpu: 0, ram: 0, disk: 0, netRx: 0, netTx: 0 };
 let currentBotStatus = "Offline";
 
 // Network Tracking Variables
@@ -311,13 +251,7 @@ const defaultReplyMarkup = {
   one_time_keyboard: false
 };
 
-function drawProgressBar(percent: number, size = 10) {
-  const progress = Math.round((percent / 100) * size);
-  const emptyProgress = size - progress;
-  const progressText = "█".repeat(progress);
-  const emptyProgressText = "░".repeat(emptyProgress);
-  return `[${progressText}${emptyProgressText}] ${percent}%`;
-}
+// drawProgressBar imported from src/server/formatters
 
 function initializeTelegramBot() {
   // Stop existing bot
@@ -383,21 +317,10 @@ function initializeTelegramBot() {
       const cpuModel = cpus.length > 0 ? cpus[0].model : "Unknown Processor";
       const cpuCores = cpus.length;
       const cpuSpeed = cpus.length > 0 ? cpus[0].speed : 0;
-      
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const usedMem = totalMem - freeMem;
-      const ramPercent = Math.round((usedMem / totalMem) * 100);
-      const totalRamGb = (totalMem / 1024 / 1024 / 1024).toFixed(2);
-      const usedRamGb = (usedMem / 1024 / 1024 / 1024).toFixed(2);
-      const freeRamGb = (freeMem / 1024 / 1024 / 1024).toFixed(2);
+      const ram = getRamInfo();
 
       const disk = await getDiskUsage();
-      const uptimeSec = os.uptime();
-      const days = Math.floor(uptimeSec / (3600 * 24));
-      const hours = Math.floor((uptimeSec % (3600 * 24)) / 3600);
-      const minutes = Math.floor((uptimeSec % 3600) / 60);
-      const uptimeStr = `${days} hari, ${hours} jam, ${minutes} menit`;
+      const uptimeStr = formatUptime(os.uptime());
 
       // mengukur real-time CPU usage
       const cpuVal = await getCPUUsage();
@@ -413,8 +336,8 @@ function initializeTelegramBot() {
         `• *CPU Thread / Core:* \`${cpuCores} Threads @ ${cpuSpeed} MHz\`\n` +
         `• *Beban CPU Saat Ini:* \`${cpuVal}%\`\n` +
         `• *Load Average (5s/10s/15s):* \`[${os.loadavg().map(v => v.toFixed(2)).join(", ")}]\`\n` +
-        `• *Kapasitas RAM:* \`${totalRamGb} GB\` (Free: ${freeRamGb} GB)\n` +
-        `• *RAM Terpakai:* \`${usedRamGb} GB\` (${ramPercent}% Used)\n` +
+        `• *Kapasitas RAM:* \`${ram.totalGb} GB\` (Free: ${ram.freeGb} GB)\n` +
+        `• *RAM Terpakai:* \`${ram.usedGb} GB\` (${ram.percent}% Used)\n` +
         `• *Disk Storage:* \`${disk.total} GB\` (Free: ${disk.free} GB, ${disk.usagePercent}% Used)\n` +
         `• *Uptime Server:* \`${uptimeStr}\`\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -443,25 +366,14 @@ function initializeTelegramBot() {
     botInstance.onText(/\/status/, async (msg) => {
       const chatId = msg.chat.id;
       const cpuVal = await getCPUUsage();
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const usedMem = totalMem - freeMem;
-      const ramPercent = Math.round((usedMem / totalMem) * 100);
+      const ram = getRamInfo();
       const disk = await getDiskUsage();
-
-      const totalMemGb = +(totalMem / 1024 / 1024 / 1024).toFixed(2);
-      const usedMemGb = +(usedMem / 1024 / 1024 / 1024).toFixed(2);
-      const uptimeSec = os.uptime();
-      
-      const days = Math.floor(uptimeSec / (3600 * 24));
-      const hours = Math.floor((uptimeSec % (3600 * 24)) / 3600);
-      const minutes = Math.floor((uptimeSec % 3600) / 60);
-      const uptimeStr = `${days} hari, ${hours} jam, ${minutes} menit`;
+      const uptimeStr = formatUptime(os.uptime());
 
       const statusMsg = `📊 *ID SERVER: LOCAL DASHBOARD*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `🖥️ *CPU Usage:* \n\`${drawProgressBar(cpuVal)}\`\n\n` +
-        `📟 *RAM Usage:* \n\`${drawProgressBar(ramPercent)}\` \n_${usedMemGb} GB dari ${totalMemGb} GB_\n\n` +
+        `📟 *RAM Usage:* \n\`${drawProgressBar(ram.percent)}\` \n_${ram.usedGb} GB dari ${ram.totalGb} GB_\n\n` +
         `💾 *Disk Storage:* \n\`${drawProgressBar(disk.usagePercent)}\` \n_${disk.used} GB dari ${disk.total} GB_\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `⏱️ *Uptime:* \`${uptimeStr}\`\n` +
@@ -498,22 +410,18 @@ function initializeTelegramBot() {
     });
 
     botInstance.onText(/\/ram/, (msg) => {
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const usedMem = totalMem - freeMem;
-      const ramPercent = Math.round((usedMem / totalMem) * 100);
-
-      const totalMb = Math.round(totalMem / 1024 / 1024);
-      const usedMb = Math.round(usedMem / 1024 / 1024);
-      const freeMb = Math.round(freeMem / 1024 / 1024);
+      const ram = getRamInfo();
+      const totalMb = Math.round(ram.totalBytes / 1024 / 1024);
+      const usedMb = Math.round(ram.usedBytes / 1024 / 1024);
+      const freeMb = Math.round(ram.freeBytes / 1024 / 1024);
 
       const response = `📟 *INFORMASI RAM (MEMORY)*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `• *Total:* \`${(totalMb / 1024).toFixed(2)} GB\` (${totalMb} MB)\n` +
-        `• *Used:* \`${(usedMb / 1024).toFixed(2)} GB\` (${usedMb} MB)\n` +
-        `• *Free:* \`${(freeMb / 1024).toFixed(2)} GB\` (${freeMb} MB)\n` +
-        `• *Persentase:* \`${ramPercent}%\`\n` +
-        `• *Visual Grafis:* \n\`${drawProgressBar(ramPercent)}\`\n` +
+        `• *Total:* \`${ram.totalGb} GB\` (${totalMb} MB)\n` +
+        `• *Used:* \`${ram.usedGb} GB\` (${usedMb} MB)\n` +
+        `• *Free:* \`${ram.freeGb} GB\` (${freeMb} MB)\n` +
+        `• *Persentase:* \`${ram.percent}%\`\n` +
+        `• *Visual Grafis:* \n\`${drawProgressBar(ram.percent)}\`\n` +
         `━━━━━━━━━━━━━━━━━━━━━`;
       botInstance?.sendMessage(msg.chat.id, response, { 
         parse_mode: "Markdown",
@@ -572,90 +480,31 @@ function initializeTelegramBot() {
       if (!botConfig.chatId || !botInstance) return;
 
       const cpu = await getCPUUsage();
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const ramPercent = Math.round(((totalMem - freeMem) / totalMem) * 100);
+      const ram = getRamInfo();
       const disk = await getDiskUsage();
-
       const now = Date.now();
 
-      // Check CPU
-      if (cpu >= botConfig.alertCpuThreshold) {
-        if (now - lastAlertTimes.cpu > intervalMs) {
-          botInstance.sendMessage(
-            botConfig.chatId,
-            `⚠️ *PERINGATAN: PENGGUNAAN CPU TINGGI!*\n` +
-              `Status CPU mencapai \`${cpu}%\` (Batas limit: ${botConfig.alertCpuThreshold}%).\n` +
-              `Silakan periksa proses server Anda segera!`,
-            { parse_mode: "Markdown" }
-          );
-          lastAlertTimes.cpu = now;
-          logEvent("cpu", "danger", "Limit CPU Terlampaui", `CPU lokal terdeteksi overload mencapai ${cpu}% (Threshold: ${botConfig.alertCpuThreshold}%).`);
-        }
-      }
+      const { alerts, updatedTimestamps } = checkThresholdsAndBuildAlerts(
+        {
+          cpuPercent: cpu,
+          ramPercent: ram.percent,
+          diskPercent: disk.usagePercent,
+          diskFreeGb: disk.free,
+          rxSpeedMbps: currentNetSpeed.rxSpeed / 1024 / 1024,
+          txSpeedMbps: currentNetSpeed.txSpeed / 1024 / 1024,
+          rxPacketsPerSec: currentNetSpeed.rxPacketsSpeed,
+          txPacketsPerSec: currentNetSpeed.txPacketsSpeed,
+        },
+        botConfig,
+        lastAlertTimes,
+        now
+      );
 
-      // Check RAM
-      if (ramPercent >= botConfig.alertRamThreshold) {
-        if (now - lastAlertTimes.ram > intervalMs) {
-          botInstance.sendMessage(
-            botConfig.chatId,
-            `⚠️ *PERINGATAN: OVERLOAD RAM / MEMORY!*\n` +
-              `Status RAM mencapai \`${ramPercent}%\` (Batas limit: ${botConfig.alertRamThreshold}%).\n` +
-              `Kapasitas tersisa sangat rendah!`,
-            { parse_mode: "Markdown" }
-          );
-          lastAlertTimes.ram = now;
-          logEvent("ram", "danger", "Memory RAM Penuh", `Beban Memory VPS overload di angka ${ramPercent}% (Threshold: ${botConfig.alertRamThreshold}%).`);
-        }
-      }
+      lastAlertTimes = updatedTimestamps;
 
-      // Check Disk
-      if (disk.usagePercent >= botConfig.alertDiskThreshold) {
-        if (now - lastAlertTimes.disk > intervalMs) {
-          botInstance.sendMessage(
-            botConfig.chatId,
-            `⚠️ *PERINGATAN: KAPASITAS DISK HAMPIR HABIS!*\n` +
-              `Status Penyimpanan mencapai \`${disk.usagePercent}%\` (Batas limit: ${botConfig.alertDiskThreshold}%).\n` +
-              `Sisa kapasitas: \`${disk.free} GB\`.`,
-            { parse_mode: "Markdown" }
-          );
-          lastAlertTimes.disk = now;
-          logEvent("disk", "danger", "Penyimpanan Disk Penuh", `Sisa kapasitas disk menipis dengan beban ${disk.usagePercent}% (Threshold: ${botConfig.alertDiskThreshold}%).`);
-        }
-      }
-
-      // Check Network RX/TX Bandwidth
-      const rxSpeedMb = currentNetSpeed.rxSpeed / 1024 / 1024;
-      const txSpeedMb = currentNetSpeed.txSpeed / 1024 / 1024;
-      const rxLimitMb = botConfig.alertNetRxThreshold || 10;
-      const txLimitMb = botConfig.alertNetTxThreshold || 10;
-
-      if (rxSpeedMb >= rxLimitMb) {
-        if (now - lastAlertTimes.netRx > intervalMs) {
-          botInstance.sendMessage(
-            botConfig.chatId,
-            `⚠️ *PERINGATAN: TRAFIK MASUK (RX) SANGAT TINGGI!*\n` +
-              `Intensitas bandwidth masuk mencapai \`${rxSpeedMb.toFixed(2)} MB/s\` (Batas limit: ${rxLimitMb} MB/s).\n` +
-              `Deteksi paket per detik: \`${currentNetSpeed.rxPacketsSpeed.toLocaleString()} pps\`.`,
-            { parse_mode: "Markdown" }
-          );
-          lastAlertTimes.netRx = now;
-          logEvent("network", "danger", "Overload Bandwidth Masuk", `Sistem mendeteksi bandwidth masuk tinggi di angka ${rxSpeedMb.toFixed(2)} MB/s (PPS: ${currentNetSpeed.rxPacketsSpeed}).`);
-        }
-      }
-
-      if (txSpeedMb >= txLimitMb) {
-        if (now - lastAlertTimes.netTx > intervalMs) {
-          botInstance.sendMessage(
-            botConfig.chatId,
-            `⚠️ *PERINGATAN: TRAFIK KELUAR (TX) SANGAT TINGGI!*\n` +
-              `Intensitas bandwidth keluar mencapai \`${txSpeedMb.toFixed(2)} MB/s\` (Batas limit: ${txLimitMb} MB/s).\n` +
-              `Deteksi paket per detik: \`${currentNetSpeed.txPacketsSpeed.toLocaleString()} pps\`.`,
-            { parse_mode: "Markdown" }
-          );
-          lastAlertTimes.netTx = now;
-          logEvent("network", "danger", "Overload Bandwidth Keluar", `Sistem mendeteksi bandwidth keluar tinggi di angka ${txSpeedMb.toFixed(2)} MB/s (PPS: ${currentNetSpeed.txPacketsSpeed}).`);
-        }
+      for (const alert of alerts) {
+        botInstance.sendMessage(botConfig.chatId, alert.text, { parse_mode: "Markdown" });
+        logEvent(alert.logType, "danger", alert.logTitle, alert.logMessage);
       }
     }, 20000); // Check every 20 seconds, but throttle telegram msgs via threshold and intervalMs
 
@@ -675,8 +524,7 @@ if (botConfig.isActive && botConfig.token) {
 app.get("/api/system-stats", async (req, res) => {
   try {
     const cpu = await getCPUUsage();
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
+    const ram = getRamInfo();
     const disk = await getDiskUsage();
     
     res.json({
@@ -684,10 +532,10 @@ app.get("/api/system-stats", async (req, res) => {
       data: {
         cpu,
         ram: {
-          total: +(totalMem / 1024 / 1024 / 1024).toFixed(2),
-          free: +(freeMem / 1024 / 1024 / 1024).toFixed(2),
-          used: +((totalMem - freeMem) / 1024 / 1024 / 1024).toFixed(2),
-          percent: Math.round(((totalMem - freeMem) / totalMem) * 100),
+          total: ram.totalGb,
+          free: ram.freeGb,
+          used: ram.usedGb,
+          percent: ram.percent,
         },
         disk,
         uptime: os.uptime(),

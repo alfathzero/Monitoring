@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { apiGet, apiPost } from "./utils/api";
+import { formatUptime, drawProgressBar as clientDrawProgressBar } from "./utils/formatters";
 import { 
   Server, 
   Cpu, 
@@ -1133,10 +1135,7 @@ export default function App() {
     setIsRestarting(true);
     setStatusMsg(null);
     try {
-      const res = await fetch("/api/restart-bot", {
-        method: "POST",
-      });
-      const data = await res.json();
+      const data = await apiPost("/api/restart-bot");
       setIsRestarting(false);
       if (data.success) {
         setStatusMsg({ type: "success", text: "Proses polling bot Telegram berhasil dinyalakan ulang!" });
@@ -1154,15 +1153,11 @@ export default function App() {
     setCheckingPorts(true);
     setPorts(prev => prev.map(p => ({ ...p, status: "loading" })));
     try {
-      const res = await fetch("/api/check-ports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ports: ports.map(p => ({ id: p.id, host: p.host, port: p.port })) })
-      });
-      const data = await res.json();
-      if (data.success && data.results) {
+      const data = await apiPost("/api/check-ports", { ports: ports.map(p => ({ id: p.id, host: p.host, port: p.port })) });
+      if (data.success && (data as Record<string, unknown>).results) {
+        const results = (data as Record<string, unknown>).results as { id: string; status: string }[];
         setPorts(prev => prev.map(p => {
-          const match = data.results.find((r: any) => r.id === p.id);
+          const match = results.find((r) => r.id === p.id);
           return match ? { ...p, status: match.status } : p;
         }));
       } else {
@@ -1200,14 +1195,9 @@ export default function App() {
     setExecutingCmd(true);
     setTerminalOutput(prev => prev + `\n\n$ executing: ${cmdId}...`);
     try {
-      const res = await fetch("/api/run-command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cmdId })
-      });
-      const data = await res.json();
+      const data = await apiPost("/api/run-command", { cmdId });
       if (data.success) {
-        setTerminalOutput(prev => prev + `\n\n=== TERM OUTPUT (${cmdId}) ===\n` + data.output);
+        setTerminalOutput(prev => prev + `\n\n=== TERM OUTPUT (${cmdId}) ===\n` + (data as Record<string, unknown>).output);
       } else {
         setTerminalOutput(prev => prev + `\n\nError: ` + data.error);
       }
@@ -1221,14 +1211,9 @@ export default function App() {
   const handleTriggerBackup = async () => {
     setIsSimulatingBackup(true);
     try {
-      const res = await fetch("/api/trigger-backup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: backupName, target: backupTarget })
-      });
-      const data = await res.json();
-      if (data.success && data.backup) {
-        setBackups(prev => [data.backup, ...prev]);
+      const data = await apiPost("/api/trigger-backup", { name: backupName, target: backupTarget });
+      if (data.success && (data as Record<string, unknown>).backup) {
+        setBackups(prev => [(data as Record<string, unknown>).backup as typeof prev[number], ...prev]);
         fetchAlertLogs();
       }
     } catch (e) {
@@ -1241,12 +1226,14 @@ export default function App() {
   const handleOptimizeRam = async () => {
     setIsOptimizing(true);
     try {
-      const res = await fetch("/api/optimize-ram", { method: "POST" });
-      const data = await res.json();
+      const data = await apiPost("/api/optimize-ram");
+      const result = data as Record<string, unknown>;
       if (data.success) {
+        const logs = result.logs as string[];
+        const recoveredBytes = result.recoveredBytes as number;
         setOptimizationLogs(prev => [
-          ...data.logs,
-          `[${new Date().toLocaleTimeString()}] Pembebasan RAM sukses. Menghemat estimasi ${(data.recoveredBytes / 1024 / 1024).toFixed(1)} MB!`,
+          ...logs,
+          `[${new Date().toLocaleTimeString()}] Pembebasan RAM sukses. Menghemat estimasi ${(recoveredBytes / 1024 / 1024).toFixed(1)} MB!`,
           ...prev
         ]);
         if (stats) {
@@ -1254,7 +1241,7 @@ export default function App() {
             ...stats,
             ram: {
               ...stats.ram,
-              used: Math.max(0.2, stats.ram.used - (data.recoveredBytes / 1024 / 1024 / 1024)),
+              used: Math.max(0.2, stats.ram.used - (recoveredBytes / 1024 / 1024 / 1024)),
               percent: Math.max(8, Math.round(stats.ram.percent - 12))
             }
           });
@@ -1317,11 +1304,8 @@ export default function App() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("/api/system-stats");
-      const data = await res.json();
-      if (data.success) {
-        setStats(data.data);
-      }
+      const data = await apiGet<SystemStats>("/api/system-stats");
+      if (data.success && data.data) setStats(data.data);
     } catch (err) {
       console.error("Error fetching local stats:", err);
     }
@@ -1329,11 +1313,8 @@ export default function App() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch("/api/telegram-config");
-      const data = await res.json();
-      if (data.success) {
-        setConfig(data.data);
-      }
+      const data = await apiGet<TelegramConfig>("/api/telegram-config");
+      if (data.success && data.data) setConfig(data.data);
     } catch (err) {
       console.error("Error fetching bot config:", err);
     }
@@ -1341,11 +1322,8 @@ export default function App() {
 
   const fetchRemoteDevices = async () => {
     try {
-      const res = await fetch("/api/remote-devices");
-      const data = await res.json();
-      if (data.success) {
-        setRemoteDevices(data.data);
-      }
+      const data = await apiGet<RemoteDevice[]>("/api/remote-devices");
+      if (data.success && data.data) setRemoteDevices(data.data);
     } catch (err) {
       console.error("Error fetching remote devices:", err);
     }
@@ -1353,11 +1331,8 @@ export default function App() {
 
   const fetchAlertLogs = async () => {
     try {
-      const res = await fetch("/api/alert-logs");
-      const data = await res.json();
-      if (data.success) {
-        setAlertLogs(data.data);
-      }
+      const data = await apiGet<AlertLog[]>("/api/alert-logs");
+      if (data.success && data.data) setAlertLogs(data.data);
     } catch (err) {
       console.error("Error fetching alert logs:", err);
     }
@@ -1368,10 +1343,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch("/api/clear-logs", {
-        method: "POST"
-      });
-      const data = await res.json();
+      const data = await apiPost("/api/clear-logs");
       if (data.success) {
         setAlertLogs([]);
         setStatusMsg({ type: "success", text: "Seluruh logs berhasil dibersihkan!" });
@@ -1386,10 +1358,9 @@ export default function App() {
 
   const fetchBandwidthConfig = async () => {
     try {
-      const res = await fetch("/api/bandwidth-config");
-      const json = await res.json();
+      const json = await apiGet("/api/bandwidth-config");
       if (json.success && json.data) {
-        setBandwidthConfig(json.data);
+        setBandwidthConfig(json.data as { alertNetRxThreshold: number; alertNetTxThreshold: number });
       }
     } catch (err) {
       console.error("Gagal mengambil konfigurasi bandwidth:", err);
@@ -1400,12 +1371,7 @@ export default function App() {
     e.preventDefault();
     setSavingBandwidthConfig(true);
     try {
-      const res = await fetch("/api/bandwidth-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bandwidthConfig)
-      });
-      const json = await res.json();
+      const json = await apiPost("/api/bandwidth-config", bandwidthConfig);
       if (json.success) {
         alert("Konfigurasi limit alarm bandwidth berhasil disimpan!");
       } else {
@@ -1429,12 +1395,7 @@ export default function App() {
     setSimCountdown(durationSec);
 
     try {
-      const res = await fetch("/api/bandwidth-test-flood", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, speedMb, durationSec })
-      });
-      const json = await res.json();
+      const json = await apiPost("/api/bandwidth-test-flood", { type, speedMb, durationSec });
       if (!json.success) {
         alert("Gagal menjalankan simulasi: " + json.error);
         setIsSimulatingFlood(false);
@@ -1462,12 +1423,7 @@ export default function App() {
       const trimmed = text.trim().toLowerCase();
       let botResponse = "";
 
-      const getBar = (pct: number) => {
-        const totalBlocks = 10;
-        const filled = Math.round((pct / 100) * totalBlocks);
-        const blank = totalBlocks - filled;
-        return "■".repeat(filled) + "□".repeat(blank) + ` [${pct}%]`;
-      };
+      const getBar = clientDrawProgressBar;
 
       // Base commands
       if (trimmed === "/start") {
@@ -1523,14 +1479,9 @@ export default function App() {
     setSavingConfig(true);
     setStatusMsg(null);
     try {
-      const res = await fetch("/api/telegram-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      const data = await res.json();
+      const data = await apiPost<TelegramConfig>("/api/telegram-config", config);
       setSavingConfig(false);
-      if (data.success) {
+      if (data.success && data.data) {
         setConfig(data.data);
         if (data.data.isActive) {
           setStatusMsg({ type: "success", text: "Konfigurasi disimpan! Bot Telegram AKTIF & berjalan di server Sandbox (Status: Online)." });
@@ -1554,12 +1505,7 @@ export default function App() {
     setTestSending(true);
     setStatusMsg(null);
     try {
-      const res = await fetch("/api/send-test-alert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: config.token, chatId: config.chatId }),
-      });
-      const data = await res.json();
+      const data = await apiPost("/api/send-test-alert", { token: config.token, chatId: config.chatId });
       setTestSending(false);
       if (data.success) {
         setStatusMsg({ type: "success", text: "Pesan tes sukses dikirim! Periksa Telegram Chat Anda." });
@@ -1578,20 +1524,7 @@ export default function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Helper for computing readable uptime
-  const formatUptime = (seconds: number) => {
-    const d = Math.floor(seconds / (3600 * 24));
-    const h = Math.floor((seconds % (3600 * 24)) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-
-    const parts = [];
-    if (d > 0) parts.push(`${d} hari`);
-    if (h > 0) parts.push(`${h} jam`);
-    if (m > 0) parts.push(`${m} menit`);
-    if (d === 0 && h === 0) parts.push(`${s} detik`);
-    return parts.join(" ");
-  };
+  // formatUptime imported from src/utils/formatters
 
   // Pre-generate tailored server code based on their input
   const generatedScriptCode = `/**
