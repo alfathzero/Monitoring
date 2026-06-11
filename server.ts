@@ -132,7 +132,7 @@ function getDiskUsage(): Promise<{ total: number; free: number; used: number; us
           });
         }
       } catch (e) {
-        // Fallback
+        console.warn("Failed to parse disk usage output:", e);
       }
       resolve({ total: 100, free: 60, used: 40, usagePercent: 40 });
     });
@@ -199,6 +199,7 @@ function getNetworkTraffic(): Promise<{ rxBytes: number; txBytes: number; rxPack
         }
         resolve({ rxBytes, txBytes, rxPackets, txPackets });
       } catch (e) {
+        console.warn("Failed to parse /proc/net/dev:", e);
         resolve({
           rxBytes: simulatedNetwork.rxBytes,
           txBytes: simulatedNetwork.txBytes,
@@ -244,7 +245,7 @@ async function trackBandwidth() {
       txPackets: stats.txPackets,
     };
   } catch (err) {
-    // Ignore bandwidth tracking errors
+    console.warn("Bandwidth tracking error:", err);
   }
 }
 
@@ -369,7 +370,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(chatId, welcomeMessage, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup 
-      });
+      }).catch((err) => console.error("Failed to send /start response:", err.message));
     });
 
     botInstance.onText(/\/ping/, async (msg) => {
@@ -423,7 +424,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(chatId, response, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /ping response:", err.message));
     });
 
     botInstance.onText(/\/help/, (msg) => {
@@ -437,7 +438,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(msg.chat.id, helpText, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /help response:", err.message));
     });
 
     botInstance.onText(/\/status/, async (msg) => {
@@ -473,7 +474,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(chatId, statusMsg, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /status response:", err.message));
     });
 
     botInstance.onText(/\/cpu/, async (msg) => {
@@ -494,7 +495,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(msg.chat.id, response, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /cpu response:", err.message));
     });
 
     botInstance.onText(/\/ram/, (msg) => {
@@ -518,7 +519,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(msg.chat.id, response, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /ram response:", err.message));
     });
 
     botInstance.onText(/\/disk/, async (msg) => {
@@ -534,7 +535,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(msg.chat.id, response, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /disk response:", err.message));
     });
 
     botInstance.onText(/\/bandwidth/, async (msg) => {
@@ -560,7 +561,7 @@ function initializeTelegramBot() {
       botInstance?.sendMessage(msg.chat.id, response, { 
         parse_mode: "Markdown",
         reply_markup: defaultReplyMarkup
-      });
+      }).catch((err) => console.error("Failed to send /bandwidth response:", err.message));
     });
 
     currentBotStatus = "Online";
@@ -588,7 +589,7 @@ function initializeTelegramBot() {
               `Status CPU mencapai \`${cpu}%\` (Batas limit: ${botConfig.alertCpuThreshold}%).\n` +
               `Silakan periksa proses server Anda segera!`,
             { parse_mode: "Markdown" }
-          );
+          ).catch((err) => console.error("Failed to send CPU alert:", err.message));
           lastAlertTimes.cpu = now;
           logEvent("cpu", "danger", "Limit CPU Terlampaui", `CPU lokal terdeteksi overload mencapai ${cpu}% (Threshold: ${botConfig.alertCpuThreshold}%).`);
         }
@@ -603,7 +604,7 @@ function initializeTelegramBot() {
               `Status RAM mencapai \`${ramPercent}%\` (Batas limit: ${botConfig.alertRamThreshold}%).\n` +
               `Kapasitas tersisa sangat rendah!`,
             { parse_mode: "Markdown" }
-          );
+          ).catch((err) => console.error("Failed to send RAM alert:", err.message));
           lastAlertTimes.ram = now;
           logEvent("ram", "danger", "Memory RAM Penuh", `Beban Memory VPS overload di angka ${ramPercent}% (Threshold: ${botConfig.alertRamThreshold}%).`);
         }
@@ -618,7 +619,7 @@ function initializeTelegramBot() {
               `Status Penyimpanan mencapai \`${disk.usagePercent}%\` (Batas limit: ${botConfig.alertDiskThreshold}%).\n` +
               `Sisa kapasitas: \`${disk.free} GB\`.`,
             { parse_mode: "Markdown" }
-          );
+          ).catch((err) => console.error("Failed to send disk alert:", err.message));
           lastAlertTimes.disk = now;
           logEvent("disk", "danger", "Penyimpanan Disk Penuh", `Sisa kapasitas disk menipis dengan beban ${disk.usagePercent}% (Threshold: ${botConfig.alertDiskThreshold}%).`);
         }
@@ -638,7 +639,7 @@ function initializeTelegramBot() {
               `Intensitas bandwidth masuk mencapai \`${rxSpeedMb.toFixed(2)} MB/s\` (Batas limit: ${rxLimitMb} MB/s).\n` +
               `Deteksi paket per detik: \`${currentNetSpeed.rxPacketsSpeed.toLocaleString()} pps\`.`,
             { parse_mode: "Markdown" }
-          );
+          ).catch((err) => console.error("Failed to send RX bandwidth alert:", err.message));
           lastAlertTimes.netRx = now;
           logEvent("network", "danger", "Overload Bandwidth Masuk", `Sistem mendeteksi bandwidth masuk tinggi di angka ${rxSpeedMb.toFixed(2)} MB/s (PPS: ${currentNetSpeed.rxPacketsSpeed}).`);
         }
@@ -652,7 +653,7 @@ function initializeTelegramBot() {
               `Intensitas bandwidth keluar mencapai \`${txSpeedMb.toFixed(2)} MB/s\` (Batas limit: ${txLimitMb} MB/s).\n` +
               `Deteksi paket per detik: \`${currentNetSpeed.txPacketsSpeed.toLocaleString()} pps\`.`,
             { parse_mode: "Markdown" }
-          );
+          ).catch((err) => console.error("Failed to send TX bandwidth alert:", err.message));
           lastAlertTimes.netTx = now;
           logEvent("network", "danger", "Overload Bandwidth Keluar", `Sistem mendeteksi bandwidth keluar tinggi di angka ${txSpeedMb.toFixed(2)} MB/s (PPS: ${currentNetSpeed.txPacketsSpeed}).`);
         }
@@ -882,6 +883,13 @@ app.post("/api/run-command", (req, res) => {
     }
 
     exec(actualCmd, (error, stdout, stderr) => {
+      if (error) {
+        const output = (stdout || "") + (stderr ? "\nstderr: " + stderr : "") + `\nExit code: ${error.code ?? "unknown"}`;
+        return res.json({
+          success: true,
+          output: output || `Perintah gagal: ${error.message}`
+        });
+      }
       const output = stdout + (stderr ? "\nstderr: " + stderr : "");
       res.json({
         success: true,
@@ -1362,4 +1370,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Fatal: Failed to start server:", err);
+  process.exit(1);
+});

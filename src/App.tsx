@@ -1136,6 +1136,11 @@ export default function App() {
       const res = await fetch("/api/restart-bot", {
         method: "POST",
       });
+      if (!res.ok) {
+        setIsRestarting(false);
+        setStatusMsg({ type: "error", text: `Server error (HTTP ${res.status}) sewaktu restart bot.` });
+        return;
+      }
       const data = await res.json();
       setIsRestarting(false);
       if (data.success) {
@@ -1169,7 +1174,9 @@ export default function App() {
         setPorts(prev => prev.map(p => ({ ...p, status: p.host === "localhost" ? "offline" : "online" })));
       }
     } catch (e) {
+      console.error("Port check failed:", e);
       setPorts(prev => prev.map(p => ({ ...p, status: "offline" })));
+      setStatusMsg({ type: "error", text: "Gagal memeriksa port: koneksi ke server terputus." });
     } finally {
       setCheckingPorts(false);
     }
@@ -1205,6 +1212,10 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cmdId })
       });
+      if (!res.ok) {
+        setTerminalOutput(prev => prev + `\n\nError: Server returned HTTP ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setTerminalOutput(prev => prev + `\n\n=== TERM OUTPUT (${cmdId}) ===\n` + data.output);
@@ -1230,9 +1241,12 @@ export default function App() {
       if (data.success && data.backup) {
         setBackups(prev => [data.backup, ...prev]);
         fetchAlertLogs();
+      } else {
+        setStatusMsg({ type: "error", text: data.error || "Gagal menjalankan backup." });
       }
     } catch (e) {
-      console.error(e);
+      console.error("Backup trigger failed:", e);
+      setStatusMsg({ type: "error", text: "Gagal menghubungi server untuk menjalankan backup." });
     } finally {
       setIsSimulatingBackup(false);
     }
@@ -1260,9 +1274,12 @@ export default function App() {
           });
         }
         fetchAlertLogs();
+      } else {
+        setStatusMsg({ type: "error", text: data.error || "Gagal mengoptimasi RAM." });
       }
     } catch (e) {
-      console.error(e);
+      console.error("RAM optimization failed:", e);
+      setStatusMsg({ type: "error", text: "Gagal menghubungi server untuk optimasi RAM." });
     } finally {
       setIsOptimizing(false);
     }
@@ -1318,9 +1335,15 @@ export default function App() {
   const fetchStats = async () => {
     try {
       const res = await fetch("/api/system-stats");
+      if (!res.ok) {
+        console.error(`System stats request failed with status ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setStats(data.data);
+      } else {
+        console.error("System stats response indicated failure:", data.error);
       }
     } catch (err) {
       console.error("Error fetching local stats:", err);
@@ -1330,9 +1353,15 @@ export default function App() {
   const fetchConfig = async () => {
     try {
       const res = await fetch("/api/telegram-config");
+      if (!res.ok) {
+        console.error(`Telegram config request failed with status ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setConfig(data.data);
+      } else {
+        console.error("Telegram config response indicated failure:", data.error);
       }
     } catch (err) {
       console.error("Error fetching bot config:", err);
@@ -1342,9 +1371,15 @@ export default function App() {
   const fetchRemoteDevices = async () => {
     try {
       const res = await fetch("/api/remote-devices");
+      if (!res.ok) {
+        console.error(`Remote devices request failed with status ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setRemoteDevices(data.data);
+      } else {
+        console.error("Remote devices response indicated failure:", data.error);
       }
     } catch (err) {
       console.error("Error fetching remote devices:", err);
@@ -1354,9 +1389,15 @@ export default function App() {
   const fetchAlertLogs = async () => {
     try {
       const res = await fetch("/api/alert-logs");
+      if (!res.ok) {
+        console.error(`Alert logs request failed with status ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setAlertLogs(data.data);
+      } else {
+        console.error("Alert logs response indicated failure:", data.error);
       }
     } catch (err) {
       console.error("Error fetching alert logs:", err);
@@ -1387,9 +1428,15 @@ export default function App() {
   const fetchBandwidthConfig = async () => {
     try {
       const res = await fetch("/api/bandwidth-config");
+      if (!res.ok) {
+        console.error(`Bandwidth config request failed with status ${res.status}`);
+        return;
+      }
       const json = await res.json();
       if (json.success && json.data) {
         setBandwidthConfig(json.data);
+      } else {
+        console.error("Bandwidth config response indicated failure:", json.error);
       }
     } catch (err) {
       console.error("Gagal mengambil konfigurasi bandwidth:", err);
@@ -1573,7 +1620,9 @@ export default function App() {
   };
 
   const handleCopyCode = (codeText: string) => {
-    navigator.clipboard.writeText(codeText);
+    navigator.clipboard.writeText(codeText).catch((err) => {
+      console.error("Clipboard write failed:", err);
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
