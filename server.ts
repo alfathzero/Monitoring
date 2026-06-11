@@ -8,6 +8,28 @@ import net from "net";
 import { exec } from "child_process";
 import { createServer as createViteServer } from "vite";
 import TelegramBot from "node-telegram-bot-api";
+import {
+  BotConfig,
+  AlertLog,
+  DEFAULT_BOT_CONFIG,
+  cpuAverage,
+  getCPUUsage,
+  drawProgressBar,
+  parseDfOutput,
+  getDiskUsage,
+  parseProcNetDev,
+  getNetworkTraffic,
+  createAlertLog,
+  appendLog,
+  loadConfig,
+  saveConfig as saveConfigToFile,
+  loadAlertLogs,
+  writeAlertLogs,
+  computeBandwidth,
+  type NetworkTraffic,
+  type NetSpeed,
+  type NetStats,
+} from "./server-utils";
 
 const app = express();
 const PORT = 3000;
@@ -15,47 +37,10 @@ const CONFIG_FILE = path.join(process.cwd(), "config.json");
 
 app.use(express.json());
 
-// Load / Save Config
-interface BotConfig {
-  token: string;
-  chatId: string;
-  alertCpuThreshold: number;
-  alertRamThreshold: number;
-  alertDiskThreshold: number;
-  alertIntervalMinutes: number;
-  isActive: boolean;
-  alertNetRxThreshold: number; // in MB/s
-  alertNetTxThreshold: number; // in MB/s
-}
-
-let botConfig: BotConfig = {
-  token: "",
-  chatId: "",
-  alertCpuThreshold: 80,
-  alertRamThreshold: 90,
-  alertDiskThreshold: 85,
-  alertIntervalMinutes: 5,
-  isActive: false,
-  alertNetRxThreshold: 10, // Default 10 MB/s
-  alertNetTxThreshold: 10, // Default 10 MB/s
-};
-
-// Safe config load
-if (fs.existsSync(CONFIG_FILE)) {
-  try {
-    const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
-    botConfig = { ...botConfig, ...JSON.parse(raw) };
-  } catch (err) {
-    console.error("Error reading config.json", err);
-  }
-}
+let botConfig: BotConfig = loadConfig(CONFIG_FILE, DEFAULT_BOT_CONFIG);
 
 function saveConfig() {
-  try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(botConfig, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error saving config.json", err);
-  }
+  saveConfigToFile(CONFIG_FILE, botConfig);
 }
 
 // In-memory remote servers telemetry cache
@@ -73,71 +58,6 @@ interface RemoteTelemetry {
 }
 
 const remoteServers = new Map<string, RemoteTelemetry>();
-
-// Helper for local CPU calculation
-function cpuAverage() {
-  const cpus = os.cpus();
-  if (!cpus || cpus.length === 0) return { idle: 0, total: 100 };
-  let idleMs = 0;
-  let totalMs = 0;
-  cpus.forEach((core) => {
-    for (const type in core.times) {
-      totalMs += (core.times as any)[type];
-    }
-    idleMs += core.times.idle;
-  });
-  return { idle: idleMs / cpus.length, total: totalMs / cpus.length };
-}
-
-function getCPUUsage(): Promise<number> {
-  return new Promise((resolve) => {
-    const startMeasure = cpuAverage();
-    setTimeout(() => {
-      const endMeasure = cpuAverage();
-      const idleDifference = endMeasure.idle - startMeasure.idle;
-      const totalDifference = endMeasure.total - startMeasure.total;
-      if (totalDifference === 0) return resolve(0);
-      const percentageCPU = 100 - Math.round((100 * idleDifference) / totalDifference);
-      resolve(Math.max(0, Math.min(100, percentageCPU)));
-    }, 150);
-  });
-}
-
-// Helper to get Disk usage
-function getDiskUsage(): Promise<{ total: number; free: number; used: number; usagePercent: number }> {
-  return new Promise((resolve) => {
-    exec("df -k /", (err, stdout) => {
-      if (err || !stdout) {
-        // Fallback for non-linux or containers without df
-        return resolve({ total: 50, free: 30, used: 20, usagePercent: 40 });
-      }
-      try {
-        const lines = stdout.trim().split("\n");
-        if (lines.length > 1) {
-          const parts = lines[1].replace(/\s+/g, " ").split(" ");
-          const totalKb = parseInt(parts[1], 10);
-          const usedKb = parseInt(parts[2], 10);
-          const freeKb = parseInt(parts[3], 10);
-          const usagePercent = parseInt(parts[4].replace("%", ""), 10);
-
-          const totalGb = +(totalKb / 1024 / 1024).toFixed(1);
-          const usedGb = +(usedKb / 1024 / 1024).toFixed(1);
-          const freeGb = +(freeKb / 1024 / 1024).toFixed(1);
-
-          return resolve({
-            total: isNaN(totalGb) ? 50 : totalGb,
-            free: isNaN(freeGb) ? 30 : freeGb,
-            used: isNaN(usedGb) ? 20 : usedGb,
-            usagePercent: isNaN(usagePercent) ? 40 : usagePercent,
-          });
-        }
-      } catch (e) {
-        // Fallback
-      }
-      resolve({ total: 100, free: 60, used: 40, usagePercent: 40 });
-    });
-  });
-}
 
 // Telegram Bot Global Instance
 let botInstance: TelegramBot | null = null;
@@ -160,143 +80,41 @@ setInterval(() => {
   simulatedNetwork.txPackets += Math.floor(txAdd / 800) + 1;
 }, 3000);
 
-// Fetch total bytes/packets from Linux /proc/net/dev
-function getNetworkTraffic(): Promise<{ rxBytes: number; txBytes: number; rxPackets: number; txPackets: number }> {
-  return new Promise((resolve) => {
-    fs.readFile("/proc/net/dev", "utf8", (err, data) => {
-      if (err || !data) {
-        return resolve({
-          rxBytes: simulatedNetwork.rxBytes,
-          txBytes: simulatedNetwork.txBytes,
-          rxPackets: simulatedNetwork.rxPackets,
-          txPackets: simulatedNetwork.txPackets,
-        });
-      }
-      try {
-        let rxBytes = 0;
-        let txBytes = 0;
-        let rxPackets = 0;
-        let txPackets = 0;
-        
-        const lines = data.split("\n");
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.includes("Inter-|") || trimmed.includes("face |")) continue;
-          
-          const parts = trimmed.split(":");
-          if (parts.length < 2) continue;
-          
-          const iface = parts[0].trim();
-          if (iface === "lo") continue; // Skip loopback interface
-          
-          const stats = parts[1].trim().split(/\s+/);
-          if (stats.length >= 10) {
-            rxBytes += parseInt(stats[0], 10) || 0;
-            rxPackets += parseInt(stats[1], 10) || 0;
-            txBytes += parseInt(stats[8], 10) || 0;
-            txPackets += parseInt(stats[9], 10) || 0;
-          }
-        }
-        resolve({ rxBytes, txBytes, rxPackets, txPackets });
-      } catch (e) {
-        resolve({
-          rxBytes: simulatedNetwork.rxBytes,
-          txBytes: simulatedNetwork.txBytes,
-          rxPackets: simulatedNetwork.rxPackets,
-          txPackets: simulatedNetwork.txPackets,
-        });
-      }
-    });
-  });
-}
+// Fetch total bytes/packets from Linux /proc/net/dev (delegates to server-utils)
 
 // Background network speed sampler
 async function trackBandwidth() {
   try {
-    const stats = await getNetworkTraffic();
+    const stats = await getNetworkTraffic(simulatedNetwork);
     const now = Date.now();
-    const deltaSec = (now - prevNetStats.time) / 1000;
-    
-    if (deltaSec > 0.5) {
-      let rxDelta = stats.rxBytes - prevNetStats.rxBytes;
-      let txDelta = stats.txBytes - prevNetStats.txBytes;
-      let rxPacketsDelta = stats.rxPackets - prevNetStats.rxPackets;
-      let txPacketsDelta = stats.txPackets - prevNetStats.txPackets;
-      
-      if (rxDelta < 0) rxDelta = 0;
-      if (txDelta < 0) txDelta = 0;
-      if (rxPacketsDelta < 0) rxPacketsDelta = 0;
-      if (txPacketsDelta < 0) txPacketsDelta = 0;
-      
-      currentNetSpeed = {
-        rxSpeed: Math.round(rxDelta / deltaSec),
-        txSpeed: Math.round(txDelta / deltaSec),
-        rxPacketsSpeed: Math.round(rxPacketsDelta / deltaSec),
-        txPacketsSpeed: Math.round(txPacketsDelta / deltaSec),
-      };
+    const result = computeBandwidth(prevNetStats, stats, now);
+    if (result) {
+      currentNetSpeed = result.speed;
+      prevNetStats = result.updatedStats;
     }
-    
-    prevNetStats = {
-      time: now,
-      rxBytes: stats.rxBytes,
-      txBytes: stats.txBytes,
-      rxPackets: stats.rxPackets,
-      txPackets: stats.txPackets,
-    };
   } catch (err) {
     // Ignore bandwidth tracking errors
   }
 }
 
 // Initialize network monitor variables
-getNetworkTraffic().then((p) => {
+getNetworkTraffic(simulatedNetwork).then((p) => {
   prevNetStats = { time: Date.now(), ...p };
   setInterval(trackBandwidth, 3000);
 });
 
 // System Alert & Event Logs Configuration
 const LOGS_FILE = path.join(process.cwd(), "alert_logs.json");
-interface AlertLog {
-  id: string;
-  timestamp: string;
-  type: "cpu" | "ram" | "disk" | "system" | "remote" | "network";
-  level: "info" | "warning" | "danger" | "success";
-  title: string;
-  message: string;
-}
 
-let alertLogs: AlertLog[] = [];
-
-if (fs.existsSync(LOGS_FILE)) {
-  try {
-    const raw = fs.readFileSync(LOGS_FILE, "utf-8");
-    alertLogs = JSON.parse(raw);
-  } catch (err) {
-    console.error("Error reading alert_logs.json", err);
-  }
-}
+let alertLogs: AlertLog[] = loadAlertLogs(LOGS_FILE);
 
 function writeLogs() {
-  try {
-    fs.writeFileSync(LOGS_FILE, JSON.stringify(alertLogs, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error saving alert_logs.json", err);
-  }
+  writeAlertLogs(LOGS_FILE, alertLogs);
 }
 
-function logEvent(type: "cpu" | "ram" | "disk" | "system" | "remote" | "network", level: "info" | "warning" | "danger" | "success", title: string, message: string) {
-  const newLog: AlertLog = {
-    id: Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
-    timestamp: new Date().toISOString(),
-    type,
-    level,
-    title,
-    message,
-  };
-  alertLogs.unshift(newLog);
-  if (alertLogs.length > 100) {
-    alertLogs = alertLogs.slice(0, 100);
-  }
+function logEvent(type: AlertLog["type"], level: AlertLog["level"], title: string, message: string) {
+  const newLog = createAlertLog(type, level, title, message);
+  alertLogs = appendLog(alertLogs, newLog, 100);
   writeLogs();
 }
 
@@ -311,13 +129,7 @@ const defaultReplyMarkup = {
   one_time_keyboard: false
 };
 
-function drawProgressBar(percent: number, size = 10) {
-  const progress = Math.round((percent / 100) * size);
-  const emptyProgress = size - progress;
-  const progressText = "█".repeat(progress);
-  const emptyProgressText = "░".repeat(emptyProgress);
-  return `[${progressText}${emptyProgressText}] ${percent}%`;
-}
+// drawProgressBar imported from server-utils
 
 function initializeTelegramBot() {
   // Stop existing bot
