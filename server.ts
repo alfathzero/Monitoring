@@ -1153,6 +1153,8 @@ setInterval(() => {
 }, 60 * 1000);
 
 
+export { app };
+
 // Integrate Vite as Middleware
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -1174,4 +1176,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VITEST) {
+  startServer();
+}
