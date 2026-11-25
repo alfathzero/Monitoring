@@ -1,0 +1,802 @@
+[
+  {
+    "id": "v6cnppbmwvl5d3f",
+    "timestamp": "2026-11-25T03:50:18.507Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 95% (Threshold: 80%)."
+  },
+  {
+    "id": "xd4yz5smwvjpx77",
+    "timestamp": "2026-11-25T03:10:18.451Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 91% (Threshold: 80%)."
+  },
+  {
+    "id": "phmn0jwmwvjg28y",
+    "timestamp": "2026-11-25T03:02:38.434Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "pvrbm45mwvj4x04",
+    "timestamp": "2026-11-25T02:53:58.420Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "izx924jmwvixmnq",
+    "timestamp": "2026-11-25T02:48:18.422Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "ct5fifimwvgkbku",
+    "timestamp": "2026-11-25T01:41:58.302Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "94x7aqomwve5qgb",
+    "timestamp": "2026-11-25T00:34:38.507Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "ti9ny9fmwvdr5fs",
+    "timestamp": "2026-11-25T00:23:18.088Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "dh7ih4vmwvdjv31",
+    "timestamp": "2026-11-25T00:17:38.077Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 89% (Threshold: 80%)."
+  },
+  {
+    "id": "l33rtjomwvdbpv5",
+    "timestamp": "2026-11-25T00:11:18.065Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "9znkry2mwvd5adk",
+    "timestamp": "2026-11-25T00:06:18.056Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "lix7r6vmwvcea43",
+    "timestamp": "2026-11-24T23:45:18.003Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "43no8qpmwvc3zqe",
+    "timestamp": "2026-11-24T23:37:17.990Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "h03pp3lmwvbwpdt",
+    "timestamp": "2026-11-24T23:31:37.985Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "f4e4mngmwvbaubg",
+    "timestamp": "2026-11-24T23:14:37.948Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "h6gzzwrmwvalz89",
+    "timestamp": "2026-11-24T22:55:17.913Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 93% (Threshold: 80%)."
+  },
+  {
+    "id": "xwsl56smwv9ptsk",
+    "timestamp": "2026-11-24T22:30:17.876Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "e4fv94imwv9eoju",
+    "timestamp": "2026-11-24T22:21:37.866Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 82% (Threshold: 80%)."
+  },
+  {
+    "id": "jrc653xmwv963ww",
+    "timestamp": "2026-11-24T22:14:57.872Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "jmb8bv5mwv8ytjx",
+    "timestamp": "2026-11-24T22:09:17.853Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "07cyjl7mwv8rj7g",
+    "timestamp": "2026-11-24T22:03:37.852Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "bc8g3p0mwv80iy4",
+    "timestamp": "2026-11-24T21:42:37.804Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "fyeo04xmwv6qnx4",
+    "timestamp": "2026-11-24T21:06:58.072Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "1vxsqc7mwv4yd0z",
+    "timestamp": "2026-11-24T20:16:57.971Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "3vefd6zmwv402ej",
+    "timestamp": "2026-11-24T19:50:17.900Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "vpejgjfmwv39x0s",
+    "timestamp": "2026-11-24T19:29:57.871Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "t7o25hfmwv21c15",
+    "timestamp": "2026-11-24T18:55:17.801Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "wvavduomwv0vr25",
+    "timestamp": "2026-11-24T18:22:57.725Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "uc40fenmwv0ogq9",
+    "timestamp": "2026-11-24T18:17:17.745Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "w2llzmumwuzjqlj",
+    "timestamp": "2026-11-24T17:45:37.639Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "ruxzbctmwuz55yb",
+    "timestamp": "2026-11-24T17:34:17.699Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "rn64co1mwuyt5qx",
+    "timestamp": "2026-11-24T17:24:57.561Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "ua6rsa3mwuy0fi3",
+    "timestamp": "2026-11-24T17:02:37.179Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "zusbb20mwuxlus9",
+    "timestamp": "2026-11-24T16:51:17.145Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "szjt1dzmwuxekon",
+    "timestamp": "2026-11-24T16:45:37.463Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "6rboge8mwuwuulk",
+    "timestamp": "2026-11-24T16:30:17.192Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 93% (Threshold: 80%)."
+  },
+  {
+    "id": "2c559rhmwuwof1f",
+    "timestamp": "2026-11-24T16:25:17.091Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "8zul4armwuwg9ty",
+    "timestamp": "2026-11-24T16:18:57.094Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "1irwm0qmwuw8zyy",
+    "timestamp": "2026-11-24T16:13:17.722Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 93% (Threshold: 80%)."
+  },
+  {
+    "id": "2itpw7emwuw1pmh",
+    "timestamp": "2026-11-24T16:07:37.721Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "3wnczagmwuvufdf",
+    "timestamp": "2026-11-24T16:01:57.843Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "w47ke2bmwuuwzre",
+    "timestamp": "2026-11-24T15:35:57.962Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "7ntt2w4mwuuppk3",
+    "timestamp": "2026-11-24T15:30:18.147Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "bvmntuqmwuuif13",
+    "timestamp": "2026-11-24T15:24:37.911Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "xfbamohmwuu8zbz",
+    "timestamp": "2026-11-24T15:17:17.663Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "lpkxh6imwutxucs",
+    "timestamp": "2026-11-24T15:08:37.996Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 97% (Threshold: 80%)."
+  },
+  {
+    "id": "d5belmlmwuswz0e",
+    "timestamp": "2026-11-24T14:39:57.759Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "lfukkpomwusiea5",
+    "timestamp": "2026-11-24T14:28:37.709Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "0qufxgzmwurj8re",
+    "timestamp": "2026-11-24T14:01:17.594Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "ruuf1efmwur2ydr",
+    "timestamp": "2026-11-24T13:48:37.647Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "wwfh4tmmwuqs8yx",
+    "timestamp": "2026-11-24T13:40:18.153Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 93% (Threshold: 80%)."
+  },
+  {
+    "id": "l60lf4tmwuq3t1f",
+    "timestamp": "2026-11-24T13:21:17.763Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 82% (Threshold: 80%)."
+  },
+  {
+    "id": "dl5yd4pmwupudhc",
+    "timestamp": "2026-11-24T13:13:57.696Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "n3y7njcmwupfsmw",
+    "timestamp": "2026-11-24T13:02:37.496Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "7gpp52umwup8iav",
+    "timestamp": "2026-11-24T12:56:57.511Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "ywyeaigmwuoti4j",
+    "timestamp": "2026-11-24T12:45:17.443Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "hdvdblkmwuo7n2j",
+    "timestamp": "2026-11-24T12:28:17.419Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "u6vi02emwuo0cpe",
+    "timestamp": "2026-11-24T12:22:37.395Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "r0gvxzdmwumwwuf",
+    "timestamp": "2026-11-24T11:51:57.255Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "abcwcd9mwum3rfm",
+    "timestamp": "2026-11-24T11:29:17.218Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "61s8x8lmwulwh1e",
+    "timestamp": "2026-11-24T11:23:37.154Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "7mapvmcmwuklqw6",
+    "timestamp": "2026-11-24T10:47:17.094Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "vijarqomwuk765g",
+    "timestamp": "2026-11-24T10:35:57.028Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "2bazlyhmwui45hg",
+    "timestamp": "2026-11-24T09:37:36.964Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "ov7et9vmwuhopxa",
+    "timestamp": "2026-11-24T09:25:36.958Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "q9qg752mwuhhfkh",
+    "timestamp": "2026-11-24T09:19:56.945Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "205ulphmwuha574",
+    "timestamp": "2026-11-24T09:14:16.912Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "hawcfinmwuh2uvl",
+    "timestamp": "2026-11-24T09:08:36.945Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "db6sczwmwugvkl1",
+    "timestamp": "2026-11-24T09:02:57.013Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "b5r3roumwugh081",
+    "timestamp": "2026-11-24T08:51:37.441Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "uzdtxspmwug9pex",
+    "timestamp": "2026-11-24T08:45:56.841Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 90% (Threshold: 80%)."
+  },
+  {
+    "id": "kuse8c2mwuftez4",
+    "timestamp": "2026-11-24T08:33:16.816Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "h3i6m58mwuc6nso",
+    "timestamp": "2026-11-24T06:51:36.312Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 86% (Threshold: 80%)."
+  },
+  {
+    "id": "zly7cbkmwu9dx40",
+    "timestamp": "2026-11-24T05:33:16.129Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "zdy16wvmwu1yf0i",
+    "timestamp": "2026-11-24T02:05:15.522Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "50rgw25mwtyryk5",
+    "timestamp": "2026-11-24T00:36:15.413Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "ept96c4mwtw881j",
+    "timestamp": "2026-11-23T23:24:55.351Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 85% (Threshold: 80%)."
+  },
+  {
+    "id": "1zeuwbvmwttemus",
+    "timestamp": "2026-11-23T22:05:55.636Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 97% (Threshold: 80%)."
+  },
+  {
+    "id": "zqnobxtmwtsr22c",
+    "timestamp": "2026-11-23T21:47:35.604Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 91% (Threshold: 80%)."
+  },
+  {
+    "id": "ehagcx8mwtsemje",
+    "timestamp": "2026-11-23T21:37:55.610Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "ceyol3emwto3v8p",
+    "timestamp": "2026-11-23T19:37:35.209Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 94% (Threshold: 80%)."
+  },
+  {
+    "id": "313l4i6mwtmtzy1",
+    "timestamp": "2026-11-23T19:01:55.129Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "9ov7e59mwtmmplh",
+    "timestamp": "2026-11-23T18:56:15.125Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "w7pwaeemwtm54v4",
+    "timestamp": "2026-11-23T18:42:35.104Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 93% (Threshold: 80%)."
+  },
+  {
+    "id": "9a4xjkgmwtl4p5i",
+    "timestamp": "2026-11-23T18:14:15.126Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 82% (Threshold: 80%)."
+  },
+  {
+    "id": "r9zzupvmwtkxes2",
+    "timestamp": "2026-11-23T18:08:35.090Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "tkc26gkmwtjnji9",
+    "timestamp": "2026-11-23T17:32:55.041Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "5o7farrmwtjg960",
+    "timestamp": "2026-11-23T17:27:15.048Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "m198h01mwtj8ysz",
+    "timestamp": "2026-11-23T17:21:35.027Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "czelv2umwtj0tnd",
+    "timestamp": "2026-11-23T17:15:15.097Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 83% (Threshold: 80%)."
+  },
+  {
+    "id": "lgca38dmwtiitgf",
+    "timestamp": "2026-11-23T17:01:15.039Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 80% (Threshold: 80%)."
+  },
+  {
+    "id": "2eexorgmwtibj2y",
+    "timestamp": "2026-11-23T16:55:35.002Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 88% (Threshold: 80%)."
+  },
+  {
+    "id": "0ps65v8mwthpo26",
+    "timestamp": "2026-11-23T16:38:35.022Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "syg68y7mwthiefk",
+    "timestamp": "2026-11-23T16:32:55.952Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "r38ha0gmwth3dkj",
+    "timestamp": "2026-11-23T16:21:14.995Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 100% (Threshold: 80%)."
+  },
+  {
+    "id": "561cd2kmwtgwjcn",
+    "timestamp": "2026-11-23T16:15:55.895Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 84% (Threshold: 80%)."
+  },
+  {
+    "id": "2nxej9qmwtfodtu",
+    "timestamp": "2026-11-23T15:41:35.874Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "d1kvtyqmwtfe3if",
+    "timestamp": "2026-11-23T15:33:35.943Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  },
+  {
+    "id": "2r2qhb7mwteisuu",
+    "timestamp": "2026-11-23T15:09:15.798Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 81% (Threshold: 80%)."
+  },
+  {
+    "id": "7tvyd99mwte22zi",
+    "timestamp": "2026-11-23T14:56:15.774Z",
+    "type": "cpu",
+    "level": "danger",
+    "title": "Limit CPU Terlampaui",
+    "message": "CPU lokal terdeteksi overload mencapai 87% (Threshold: 80%)."
+  }
+]

@@ -819,7 +819,7 @@ const welcomeInlineMarkup = {
       { text: "🔄 Refresh", callback_data: "welcome:refresh", style: "success" }
     ],
     [
-      { text: "🌐 Dashboard", url: "https://statusvps.alfamarket2.my.id", style: "primary" },
+      { text: "🌐 Dashboard", url: "https://statusvps.example.com", style: "primary" },
       { text: "ℹ️ Bantuan", callback_data: "cmd:/help", style: "primary" }
     ]
   ]

@@ -11,7 +11,7 @@
   "smartCleanupEnabled": true,
   "smartCleanupThreshold": 90,
   "smartCleanupDurationHours": 1,
-  "domain": "https://panel.example.com",
+  "domain": "",
   "ptla": "",
   "ptlc": "",
   "scanInterval": 5,

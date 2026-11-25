@@ -1,7 +1,7 @@
 {
-  "host": "your-server-ip",
+  "host": "",
   "port": 22,
-  "username": "root",
+  "username": "",
   "password": "",
   "privateKey": "",
   "isActive": false
