@@ -1,0 +1,23 @@
+{
+  "token": "",
+  "chatId": "",
+  "alertCpuThreshold": 80,
+  "alertRamThreshold": 90,
+  "alertDiskThreshold": 85,
+  "alertIntervalMinutes": 5,
+  "isActive": true,
+  "alertNetRxThreshold": 10,
+  "alertNetTxThreshold": 10,
+  "smartCleanupEnabled": true,
+  "smartCleanupThreshold": 90,
+  "smartCleanupDurationHours": 1,
+  "domain": "https://panel.example.com",
+  "ptla": "",
+  "ptlc": "",
+  "scanInterval": 5,
+  "domain2": "",
+  "ptla2": "",
+  "ptlc2": "",
+  "scanInterval2": 5,
+  "adminPassword": ""
+}
